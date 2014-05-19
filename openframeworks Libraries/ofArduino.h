@@ -1,5 +1,7 @@
 /*
  * Copyright 2007-2008 (c) Erik Sjodin, eriksjodin.net
+ * Adapted from Wiring version 2011 (c) Carlos Mario Rodriguez and 
+ * Hernando Barragan by Dominic Amato
  *
  * Permission is hereby granted, free of charge, to any person
  * obtaining a copy of this software and associated documentation
@@ -85,12 +87,11 @@
 #define FIRMATA_SYSEX_NON_REALTIME                      0x7E // MIDI Reserved for non-realtime messages
 #define FIRMATA_SYSEX_REALTIME                          0x7F // MIDI Reserved for realtime messages
 
-// ---- arduino constants (for Arduino NG and Diecimila)
-
 // board settings
-#define ARD_TOTAL_DIGITAL_PINS							22 // total number of pins currently supported
-#define ARD_TOTAL_ANALOG_PINS							6
-#define ARD_TOTAL_PORTS                                 3 // total number of ports for the board
+#define TOTAL_DIGITAL_PINS						120 // total number of pins currently supported
+#define TOTAL_ANALOG_PINS							8
+#define TOTAL_PORTS                   15 // total number of ports for the board
+
 // pin modes
 #define ARD_INPUT                                       0x00
 #define ARD_OUTPUT                                      0x01
@@ -103,46 +104,12 @@
 #define ARD_ON                                          1
 #define ARD_OFF                                         0
 
-/*
- #if defined(__AVR_ATmega168__)  // Arduino NG and Diecimila
- #define ARD_TOTAL_ANALOG_PINS       8
- #define ARD_TOTAL_DIGITAL_PINS      22 // 14 digital + 8 analog
- #define ARD_TOTAL_PORTS             3 // total number of ports for the board
- #define ARD_ANALOG_PORT             2 // port# of analog used as digital
- #elif defined(__AVR_ATmega8__)  // old Arduinos
- #define ARD_TOTAL_ANALOG_PINS       6
- #define ARD_TOTAL_DIGITAL_PINS      20 // 14 digital + 6 analog
- #define ARD_TOTAL_PORTS             3  // total number of ports for the board
- #define ARD_ANALOG_PORT             2  // port# of analog used as digital
- #elif defined(__AVR_ATmega128__)// Wiring
- #define ARD_TOTAL_ANALOG_PINS       8
- #define ARD_TOTAL_DIGITAL_PINS      43
- #define ARD_TOTAL_PORTS             5 // total number of ports for the board
- #define ARD_ANALOG_PORT             2 // port# of analog used as digital
- #else // anything else
- #define ARD_TOTAL_ANALOG_PINS       6
- #define ARD_TOTAL_DIGITAL_PINS      14
- #define ARD_TOTAL_PORTS             3 // total number of ports for the board
- #define ARD_ANALOG_PORT             2 // port# of analog used as digital
- #endif
- */
 
-// DEPRECATED as of firmata v2.2
 #define SYSEX_SERVO_ATTACH                      0x00
 #define SYSEX_SERVO_DETACH                      0x01
 #define SYSEX_SERVO_WRITE                       0x02
 
-#define OF_ARDUINO_DELAY_LENGTH					4.0
-
-#define FIRMWARE2_2								22
-#define FIRMWARE2_3                             23
-
-
-/**
-        This class extend ofStandardFirmata and provides additional functionality like servo support through SysEx messages.
-		use the OFstdFirmata for servo support...
-
-**/
+#define OF_ARDUINO_DELAY_LENGTH					10.0
 
 
 class ofArduino{
@@ -168,7 +135,7 @@ class ofArduino{
 				// polls data from the serial port, this has to be called periodically
 
 				bool isInitialized();
-				// returns true if a succesfull connection has been established and the Arduino has reported a firmware
+				// returns true if a succesfull connection has been established and the Wiring has reported a firmware
 
 				void setDigitalHistoryLength(int length);
 				void setAnalogHistoryLength(int length);
@@ -178,27 +145,14 @@ class ofArduino{
 				// --- senders
 
 				void sendDigitalPinMode(int pin, int mode);
-				// pin: 2-13
-				// mode: ARD_INPUT, ARD_OUTPUT, ARD_PWM
-				// setting a pins mode to ARD_INPUT turns on reporting for the port the pin is on
-				// Note: analog pins 0-5 can be used as digitial pins 16-21 but if the mode of _one_ of these pins is set to ARD_INPUT then _all_ analog pin reporting will be turned off
 
 				void sendAnalogPinReporting(int pin, int mode);
-				// pin: 0-5
-				// mode: ARD_ON or ARD_OFF
-				// Note: analog pins 0-5 can be used as digitial pins 16-21 but if reporting for _one_ analog pin is enabled then reporting for _all_ of digital pin 16-21 will be turned off
 
 				void sendDigital(int pin, int value, bool force = false);
-				// pin: 2-13
-				// value: ARD_LOW or ARD_HIGH
-				// the pins mode has to be set to ARD_OUTPUT or ARD_INPUT (in the latter mode pull-up resistors are enabled/disabled)
-				// Note: pin 16-21 can also be used if analog inputs 0-5 are used as digital pins
 
 				void sendPwm(int pin, int value, bool force = false);
-				// pin: 3, 5, 6, 9, 10 and 11
-				// value: 0 (always off) to 255 (always on).
-				// the pins mode has to be set to ARD_PWM
-				// TODO check if the PWM bug still is there causing frequent digital port reporting...
+
+        //void sendPwmServo(int pin, int value, bool force = false);
 
 				void sendSysEx(int command, vector<unsigned char> data);
 
@@ -230,18 +184,10 @@ class ofArduino{
 				// --- getters
 
 				int getPwm(int pin);
-				// pin: 3, 5, 6, 9, 10 and 11
-				// returns the last set PWM value (0-255) for the given pin
-				// the pins mode has to be ARD_PWM
-				// Note: pin 16-21 can also be used if analog inputs 0-5 are used as digital pins
 
 				int getDigital(int pin);
-				// pin: 2-13
-				// returns the last received value (if the pin mode is ARD_INPUT) or the last set value (if the pin mode is ARD_OUTPUT) for the given pin
-				// Note: pin 16-21 can also be used if analog inputs 0-5 are used as digital pins
 
 				int getAnalog(int pin);
-				// pin: 0-5
 				// returns the last received analog value (0-1023) for the given pin
 
 				vector<unsigned char> getSysEx();
@@ -266,12 +212,9 @@ class ofArduino{
 				// returns the name of the firmware
 
 				list<int>* getDigitalHistory(int pin);
-				// pin: 2-13
 				// returns a pointer to the digital data history list for the given pin
-				// Note: pin 16-21 can also be used if analog inputs 0-5 are used as digital pins
 
 				list<int>* getAnalogHistory(int pin);
-				// pin: 0-5
 				// returns a pointer to the analog data history list for the given pin
 
 				list<vector<unsigned char> >* getSysExHistory();
@@ -281,10 +224,10 @@ class ofArduino{
 				// returns a pointer to the string history
 
 				int getDigitalPinMode(int pin);
-				// returns ARD_INPUT, ARD_OUTPUT, ARD_PWM, ARD_SERVO, ARD_ANALOG
+				// returns INPUT, OUTPUT, PWM, SERVO, ANALOG
 
 				int getAnalogPinReporting(int pin);
-				// returns ARD_ON, ARD_OFF
+				// returns ON, OFF
 
 				int getValueFromTwo7bitBytes(unsigned char lsb, unsigned char msb);
 				// useful for parsing SysEx messages
@@ -308,7 +251,7 @@ class ofArduino{
 
 				ofEvent<const int> EInitialized;
 				// triggered when the firmware version is received upon connect, the major firmware version is passed as an argument
-				// from this point it's safe to send to the Arduino.
+				// from this point it's safe to send to the Wiring.
 
 				ofEvent<const string> EStringReceived;
 				// triggered when a string is received, the string is passed as an argument
@@ -317,39 +260,28 @@ class ofArduino{
 
 
 				// -- servo
-			    void sendServo(int pin, int value, bool force=false);
-                // pin: 9, 10
+        void sendServo(int pin, int value, bool force=false);
 				// the pin has to have a servo attached
 
-				// angle parameter DEPRECATED as of Firmata 2.2
-                void sendServoAttach(int pin, int minPulse=544, int maxPulse=2400, int angle=180);
-				// pin: 9, 10
-                // attaches a servo to a pin
+        void sendServoAttach(int pin, int minPulse=544, int maxPulse=2400, int angle=180);
+        // attaches a servo to a pin
 
-				// sendServoDetach DEPRECATED as of Firmata 2.2
-                void sendServoDetach(int pin);
-				// pin: 9, 10
-                // detaches a servo from a pin, the pin mode remains as OUTPUT
+        void sendServoDetach(int pin);
+        // detaches a servo from a pin, the pin mode remains as OUTPUT
 
 				int getServo(int pin);
 				// returns the last set servo value for a pin if the pin has a servo attached
 
 		protected:
 				bool _initialized;
-    
-                void initPins();
-                int _totalDigitalPins;
 
 				void sendDigitalPinReporting(int pin, int mode);
-				// sets pin reporting to ARD_ON or ARD_OFF
+				// sets pin reporting to ON or OFF
 				// enables / disables reporting for the pins port
 
 				void sendDigitalPortReporting(int port, int mode);
-				// sets port reporting to ARD_ON or ARD_OFF
-				// enables / disables reporting for ports 0-2
-				// port 0: pins 2-7  (0,1 are serial RX/TX)
-				// port 1: pins 8-13 (14,15 are disabled for the crystal)
-				// port 2: pins 16-21 analog pins used as digital, all analog reporting will be turned off if this is set to ARD_ON
+				// sets port reporting to ON or OFF
+				// enables / disables reporting for ports
 
 				void processData(unsigned char inputData);
 				void processDigitalPort(int port, unsigned char value);
@@ -377,9 +309,6 @@ class ofArduino{
 				int _majorFirmwareVersion;
 				int _minorFirmwareVersion;
 				string _firmwareName;
-	
-				// sum of majorFirmwareVersion * 10 + minorFirmwareVersion
-				int _firmwareVersionSum;
 
 				list<vector<unsigned char> > _sysExHistory;
 				// maintains a history of received sysEx messages (excluding SysEx messages in the extended command set)
@@ -387,28 +316,28 @@ class ofArduino{
 				list<string> _stringHistory;
 				// maintains a history of received strings
 
-				list<int> _analogHistory[ARD_TOTAL_ANALOG_PINS];
+				list<int> _analogHistory[TOTAL_ANALOG_PINS];
 				// a history of received data for each analog pin
 
-				list<int> _digitalHistory[ARD_TOTAL_DIGITAL_PINS];
+				list<int> _digitalHistory[TOTAL_DIGITAL_PINS];
 				// a history of received data for each digital pin
 
-				int _digitalPinMode[ARD_TOTAL_DIGITAL_PINS];
+				int _digitalPinMode[TOTAL_DIGITAL_PINS];
 				// the modes for all digital pins
 
-				int _digitalPinValue[ARD_TOTAL_DIGITAL_PINS];
+				int _digitalPinValue[TOTAL_DIGITAL_PINS];
 				// the last set values (DIGITAL/PWM) on all digital pins
 
-				int _digitalPortValue[ARD_TOTAL_PORTS];
+				int _digitalPortValue[TOTAL_PORTS];
 				// the last set values on all ports
 
-				int _digitalPortReporting[ARD_TOTAL_PORTS];
+				int _digitalPortReporting[TOTAL_PORTS];
 				// whether pin reporting is enabled / disabled
 
-				int _digitalPinReporting[ARD_TOTAL_DIGITAL_PINS];
+				int _digitalPinReporting[TOTAL_DIGITAL_PINS];
 				// whether pin reporting is enabled / disabled
 
-				int _analogPinReporting[ARD_TOTAL_ANALOG_PINS];
+				int _analogPinReporting[TOTAL_ANALOG_PINS];
 				// whether pin reporting is enabled / disabled
 
 				bool bUseDelay;
@@ -417,10 +346,15 @@ class ofArduino{
 
 				float connectTime;
 
-				int _servoValue[ARD_TOTAL_DIGITAL_PINS];
+				int _servoValue[TOTAL_DIGITAL_PINS];
                 // the last set servo values
+
+				float _temp;
+				// the last received temperature
+
+				float _humidity;
+				// the last received humidity
 
 };
 
 typedef ofArduino ofStandardFirmata;
-
