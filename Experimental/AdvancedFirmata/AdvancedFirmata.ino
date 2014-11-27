@@ -26,22 +26,9 @@
  */
 
 #include <Servo.h>
-#include "FirmataStepper.h"
 #include <Wire.h>
 #include <Firmata.h>
 
-// move the following defines to Firmata.h?
-#define I2C_WRITE B00000000
-#define I2C_READ B00001000
-#define I2C_READ_CONTINUOUSLY B00010000
-#define I2C_STOP_READING B00011000
-#define I2C_READ_WRITE_MODE_MASK B00011000
-#define I2C_10BIT_ADDRESS_MODE_MASK B00100000
-
-#define MAX_QUERIES 8 // max number of i2c devices in read continuous mode
-#define MINIMUM_SAMPLING_INTERVAL 10
-
-#define REGISTER_NOT_SPECIFIED -1
 
 /*==============================================================================
  * GLOBAL VARIABLES
@@ -260,7 +247,7 @@ void setPinModeCallback(byte pin, int mode)
   }
   if (IS_PIN_DIGITAL(pin))
   {
-    if (mode == INPUT)
+    if (mode == INPUT || mode == FIRMATA_INPUT_PULLUP)
     {
       portConfigInputs[pin / 8] |= (1 << (pin & 7));
     }
@@ -325,6 +312,13 @@ void setPinModeCallback(byte pin, int mode)
       // mark the pin as i2c
       // the user must call I2C_CONFIG to enable I2C for a device
       pinConfig[pin] = I2C;
+    }
+    break;
+    case FIRMATA_INPUT_PULLUP:
+    if (IS_PIN_DIGITAL(pin)) {
+      pinMode(PIN_TO_DIGITAL(pin), INPUT); // disable output driver
+      digitalWrite(PIN_TO_DIGITAL(pin), HIGH); // enable internal pull-ups
+      pinConfig[pin] = FIRMATA_INPUT_PULLUP;
     }
     break;
   default:

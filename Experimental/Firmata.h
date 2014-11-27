@@ -69,6 +69,16 @@
 #define STEPPER_CONFIG  		0
 #define STEPPER_STEP    		1
 
+#define I2C_WRITE 					B00000000
+#define I2C_READ 					B00001000
+#define I2C_READ_CONTINUOUSLY 		B00010000
+#define I2C_STOP_READING 			B00011000
+#define I2C_READ_WRITE_MODE_MASK 	B00011000
+#define I2C_10BIT_ADDRESS_MODE_MASK B00100000
+  
+#define MAX_QUERIES 8 // max number of i2c devices in read continuous mode
+#define MINIMUM_SAMPLING_INTERVAL 10
+#define REGISTER_NOT_SPECIFIED -1
 
 // pin modes
 //#define INPUT                 0x00 // defined in wiring.h
@@ -78,7 +88,7 @@
 #define SERVO                   0x04 // digital pin in Servo output mode
 #define SHIFT                   0x05 // shiftIn/shiftOut mode
 #define I2C                     0x06 // pin included in I2C setup
-#define INPUT_PULLUP			0x07 // enable pullup resistors
+#define FIRMATA_INPUT_PULLUP	0x07 // enable pullup resistors
 #define STEPPER         		0x08  // pin configured for stepper motor
 #define TOTAL_PIN_MODES         9
 

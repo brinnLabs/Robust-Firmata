@@ -185,7 +185,7 @@ void setPinModeCallback(byte pin, int mode)
     reportAnalogCallback(PIN_TO_ANALOG(pin), mode == ANALOG ? 1 : 0); // turn on/off reporting
   }
   if (IS_PIN_DIGITAL(pin)) {
-    if (mode == INPUT || mode == INPUT_PULLUP) {
+    if (mode == INPUT || mode == FIRMATA_INPUT_PULLUP) {
       portConfigInputs[pin/8] |= (1 << (pin & 7));
     } else {
       portConfigInputs[pin/8] &= ~(1 << (pin & 7));
@@ -238,11 +238,11 @@ void setPinModeCallback(byte pin, int mode)
       pinConfig[pin] = I2C;
     }
     break;
-    case INPUT_PULLUP:
+    case FIRMATA_INPUT_PULLUP:
     if (IS_PIN_DIGITAL(pin)) {
       pinMode(PIN_TO_DIGITAL(pin), INPUT); // disable output driver
       digitalWrite(PIN_TO_DIGITAL(pin), HIGH); // enable internal pull-ups
-      pinConfig[pin] = INPUT_PULLUP;
+      pinConfig[pin] = FIRMATA_INPUT_PULLUP;
     }
     break;
   default:
