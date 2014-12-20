@@ -231,7 +231,7 @@ extern FirmataClass Firmata;
 #include "WProgram.h"
 #endif
 
-#define PI_2 2*3.14159
+#define PI_2 6.28318530717958647693
 #define T1_FREQ 1000000L // provides the most accurate step delay values
 #define T1_FREQ_148 ((long)((T1_FREQ*0.676)/100)) // divided by 100 and scaled by 0.676
 
