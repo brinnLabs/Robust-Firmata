@@ -72,6 +72,7 @@ ofArduino::ofArduino(){
 		_servoValue[i] = -1;
 	}
 	bUseDelay = true;
+	sendFirmwareVersionRequest();
 }
 
 ofArduino::~ofArduino() {
@@ -350,6 +351,7 @@ void ofArduino::processData(unsigned char inputData){
 				processDigitalPort(_multiByteChannel, (_storedInputData[0] << 7) | _storedInputData[1]);
 				break;
 			case FIRMATA_REPORT_VERSION: // report version
+				cout << "reporting firmware " << endl;
 				_majorProtocolVersion = _storedInputData[1];
 				_minorProtocolVersion = _storedInputData[0];
 				ofNotifyEvent(EProtocolVersionReceived, _majorProtocolVersion, this);
@@ -424,11 +426,11 @@ void ofArduino::processData(unsigned char inputData){
 void ofArduino::processSysExData(vector<unsigned char> data){
 
 	string str;
-
 	vector<unsigned char>::iterator it;
 	unsigned char buffer;
 	//int i = 1;
 	I2C_Data reply;
+	int stepperNumber;
 	// act on reserved sysEx messages (extended commands) or trigger SysEx event...
 	switch (data.front()) { //first byte in buffer is command
 	case FIRMATA_SYSEX_REPORT_FIRMWARE:
@@ -461,8 +463,10 @@ void ofArduino::processSysExData(vector<unsigned char> data){
 		while (it != data.end()) {
 			buffer = *it;
 			it++;
-			buffer += *it << 7;
-			it++;
+			if (it != data.end()) {
+				buffer += *it << 7;
+				it++;
+			}
 			str += buffer;
 		}
 
@@ -470,9 +474,11 @@ void ofArduino::processSysExData(vector<unsigned char> data){
 		if ((int)_stringHistory.size() > _stringHistoryLength)
 			_stringHistory.pop_back();
 
+
 		ofNotifyEvent(EStringReceived, str, this);
 		break;
 	case I2C_REPLY:
+		cout << "i2c reply " << endl;
 		it = data.begin();
 		it++; // skip the first byte, which is the string command
 
@@ -492,7 +498,13 @@ void ofArduino::processSysExData(vector<unsigned char> data){
 		it = data.begin();
 		it++; // skip the first byte, which is the string command
 
-		int stepperNumber = (*it & 0x7F) | ((*++it & 0x7F) << 7);
+		if (data.size() > 2){
+			stepperNumber = (*it & 0x7F) | ((*++it & 0x7F) << 7);
+		}
+		else {
+			stepperNumber = (*it & 0x7F);
+		}
+		
 		ofNotifyEvent(EStepperIsDone, stepperNumber, this);
 		break;
 	default: // the message isn't in Firmatas extended command set
@@ -617,15 +629,12 @@ int ofArduino::getServo(int pin){
 
 void  ofArduino::sendStepper2Wire(int stepperID, int dirPin, int stepPin, int stepsPerRev){
 
-	//char numStepsPerRevLSB = stepsPerRev & 0x007F, numStepsPerRevMSB = (stepsPerRev >> 7) & 0x007F;
-
 	sendByte(FIRMATA_START_SYSEX);
 	sendByte(STEPPER_DATA);
 	sendByte(STEPPER_CONFIG);
 	sendByte(stepperID);
+	sendByte(DRIVER);
 	sendValueAsTwo7bitBytes(stepsPerRev);
-	/*sendByte(numStepsPerRevLSB);
-	sendByte(numStepsPerRevMSB);*/
 	sendByte(dirPin);
 	sendByte(stepPin);
 	sendByte(FIRMATA_END_SYSEX);
@@ -634,15 +643,13 @@ void  ofArduino::sendStepper2Wire(int stepperID, int dirPin, int stepPin, int st
 }
 
 void  ofArduino::sendStepper4Wire(int stepperID, int pin1, int pin2, int pin3, int pin4, int stepsPerRev){
-	//char numStepsPerRevLSB = stepsPerRev & 0x007F, numStepsPerRevMSB = (stepsPerRev >> 7) & 0x007F;
 
 	sendByte(FIRMATA_START_SYSEX);
 	sendByte(STEPPER_DATA);
 	sendByte(STEPPER_CONFIG);
 	sendByte(stepperID);
+	sendByte(FOUR_WIRE);
 	sendValueAsTwo7bitBytes(stepsPerRev);
-	/*sendByte(numStepsPerRevLSB);
-	sendByte(numStepsPerRevMSB);*/
 	sendByte(pin1);
 	sendByte(pin2);
 	sendByte(pin3);
@@ -660,17 +667,10 @@ void  ofArduino::sendStepperStep(int stepperID, int direction, int numSteps, int
 
 	unsigned char steps[3] = { abs(numSteps) & 0x0000007F, (abs(numSteps) >> 7) & 0x0000007F, (abs(numSteps) >> 14) & 0x0000007F };
 
-	/*unsigned char speedLSB = speed & 0x007F;
-	unsigned char speedMSB = (speed >> 7) & 0x007F;*/
-
 	// the stepper interface expects decimal expressed an an integer
 	if (acceleration != 0 && deceleration != 0) {
 		int accel = floor(acceleration * 100);
 		int decel = floor(deceleration * 100);
-
-		/*unsigned char accelLSB = accel & 0x007F, accelMSB = (accel >> 7) & 0x007F;
-
-		unsigned char decelLSB = decel & 0x007F, decelMSB = (decel >> 7) & 0x007F;*/
 
 		sendByte(FIRMATA_START_SYSEX);
 		sendByte(STEPPER_DATA);
@@ -678,17 +678,11 @@ void  ofArduino::sendStepperStep(int stepperID, int direction, int numSteps, int
 		sendByte(stepperID);
 		sendByte(direction);
 		sendByte(steps[0]);
-		sendByte(steps[0]);
-		sendByte(steps[0]);
+		sendByte(steps[1]);
+		sendByte(steps[2]);
 		sendValueAsTwo7bitBytes(speed);
 		sendValueAsTwo7bitBytes(accel);
 		sendValueAsTwo7bitBytes(decel);
-		/*sendByte(speedLSB);
-		sendByte(speedMSB);
-		sendByte(accelLSB);
-		sendByte(accelMSB);
-		sendByte(decelLSB);
-		sendByte(decelMSB);*/
 		sendByte(FIRMATA_END_SYSEX);
 
 	}
@@ -699,14 +693,24 @@ void  ofArduino::sendStepperStep(int stepperID, int direction, int numSteps, int
 		sendByte(stepperID);
 		sendByte(direction);
 		sendByte(steps[0]);
-		sendByte(steps[0]);
-		sendByte(steps[0]);
+		sendByte(steps[1]);
+		sendByte(steps[2]);
 		sendValueAsTwo7bitBytes(speed);
-		/*sendByte(speedLSB);
-		sendByte(speedMSB);*/
 		sendByte(FIRMATA_END_SYSEX);
 	}
 }
+
+void ofArduino::sendStepperLimitSwitch(int stepperID, int pin, bool sideOfStepper, bool usesInputPullup) {
+	sendByte(FIRMATA_START_SYSEX);
+	sendByte(STEPPER_DATA);
+	sendByte(STEPPER_LIMIT_SWITCH);
+	sendByte(stepperID);
+	sendByte(sideOfStepper);
+	sendByte(pin);
+	sendByte(usesInputPullup);
+	sendByte(FIRMATA_END_SYSEX);
+}
+
 /**
 * Sends a I2C config request to the arduino board with an optional
 * value in microseconds to delay an I2C Read.  Must be called before
@@ -732,25 +736,6 @@ void  ofArduino::sendI2CConfig(int delay) {
 */
 
 void  ofArduino::sendI2CWriteRequest(char slaveAddress, char * bytes) {
-
-	if (_i2cConfigured){
-		sendByte(FIRMATA_START_SYSEX);
-		sendByte(I2C_REQUEST);
-		sendByte(slaveAddress);
-		sendByte(WRITE << 3);
-
-		for (int i = 0, length = strlen(bytes); i < length; i++) {
-			sendValueAsTwo7bitBytes(bytes[i]);
-		}
-
-		sendByte(FIRMATA_END_SYSEX);
-	}
-	else {
-		ofLogNotice("Arduino") << "I2C was not configured, did you send an I2C config request?";
-	}
-}
-
-void  ofArduino::sendI2CWriteRequest(char slaveAddress, char bytes[]) {
 
 	if (_i2cConfigured){
 		sendByte(FIRMATA_START_SYSEX);

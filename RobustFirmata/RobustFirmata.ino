@@ -316,10 +316,13 @@ void setPinModeCallback(byte pin, int mode)
     break;
     case FIRMATA_INPUT_PULLUP:
     if (IS_PIN_DIGITAL(pin)) {
-      pinMode(PIN_TO_DIGITAL(pin), INPUT); // disable output driver
-      digitalWrite(PIN_TO_DIGITAL(pin), HIGH); // enable internal pull-ups
+      pinMode(PIN_TO_DIGITAL(pin), INPUT_PULLUP); // disable output driver
+      //digitalWrite(PIN_TO_DIGITAL(pin), HIGH); // enable internal pull-ups
       pinConfig[pin] = FIRMATA_INPUT_PULLUP;
     }
+    break;
+    case STEPPER:
+    pinConfig[pin] = STEPPER;
     break;
   default:
     Firmata.sendString("Unknown pin mode"); // TODO: put error msgs in EEPROM
@@ -575,12 +578,13 @@ void sysexCallback(byte command, byte argc, byte *argv)
   case STEPPER_DATA:
     byte stepCommand, deviceNum, directionPin, stepPin, stepDirection;
     byte interface, interfaceType;
-    byte motorPin3, motorPin4;
+    byte motorPin3, motorPin4, limitPin;
     unsigned int stepsPerRev;
     long numSteps;
     int stepSpeed;
     int accel;
     int decel;
+    boolean side, usePullup;
 
     stepCommand = argv[0];
     deviceNum = argv[1];
@@ -621,7 +625,6 @@ void sysexCallback(byte command, byte argc, byte *argv)
         stepDirection = argv[2];
         numSteps = (long)argv[3] | ((long)argv[4] << 7) | ((long)argv[5] << 14);
         stepSpeed = (argv[6] + (argv[7] << 7));
-
         if (stepDirection == 0)
         {
           numSteps *= -1;
@@ -641,9 +644,26 @@ void sysexCallback(byte command, byte argc, byte *argv)
             stepper[deviceNum]->setStepsToMove(numSteps, stepSpeed, accel, decel);
           }
         }
+      } 
+      else if (stepCommand == STEPPER_LIMIT_SWITCH)
+      {
+        limitPin = argv[2];
+        side = argv[3];
+        usePullup = argv[4];
+        if (stepper[deviceNum])
+        {
+          stepper[deviceNum]->setLimitSwitch(side, limitPin, usePullup);
+          if(usePullup){
+            setPinModeCallback(limitPin, FIRMATA_INPUT_PULLUP);
+          }
+          else
+          {
+            setPinModeCallback(limitPin, INPUT);
+          }
+        }
+        
       }
     }
-
     break;
 
   case SAMPLING_INTERVAL:
@@ -735,6 +755,9 @@ void sysexCallback(byte command, byte argc, byte *argv)
       Serial.write(IS_PIN_ANALOG(pin) ? PIN_TO_ANALOG(pin) : 127);
     }
     Serial.write(END_SYSEX);
+    break;
+    default:
+    Firmata.sendString("Unknown sysex command");
     break;
   }
 }

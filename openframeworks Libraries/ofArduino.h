@@ -63,13 +63,15 @@
 #define FIRMATA_SERVO                                   0x04 // digital pin in Servo output mode
 #define SHIFT											0x05 // shiftIn/shiftOut mode
 #define I2C												0x06 // pin included in I2C setup
-#define FIRMATA_INPUT_PULLUP                            0x07 // digital pin with pull-up resistors enabled
-#define STEPPER         								0x08  // pin configured for stepper motor
-#define ONEWIRE											0x0a
-#define IGNORE											0x7F
+#define ONEWIRE											0x07 // pin configured for 1-wire
+#define STEPPER											0x08 // pin configured for stepper motor
+#define ENCODER											0x09 // pin configured for rotary encoders
+#define FIRMATA_INPUT_PULLUP							0xF0 // enable pullup resistors
+#define FIRMATA_IGNORE									0x7F
 #define UNKOWN											0x10
 
-#define TOTAL_PIN_MODES 12
+#define TOTAL_PIN_MODES 13
+
 
 // extended command set using SysEx (0-127/0x00-0x7F)
 /* 0x00-0x0F reserved for custom commands */
@@ -104,8 +106,6 @@
 #define ONEWIRE_WITHDATA_REQUEST_BITS 					0x3C
 #define ONEWIRE_WRITE_REQUEST_BIT						0x20
 
-
-
 #define PULSE_IN										0x74
 #define PULSE_OUT										0x73
 
@@ -133,6 +133,7 @@
 #define STEPPER_DATA    		0x72  // move this to Firmata.h
 #define STEPPER_CONFIG  		0
 #define STEPPER_STEP    		1
+#define STEPPER_LIMIT_SWITCH	2
 
 #define SYSEX_SERVO_ATTACH                      0x00
 #define SYSEX_SERVO_DETACH                      0x01
@@ -325,6 +326,10 @@ public:
 	void sendStepperStep(int stepperID, int direction, int steps, int speed, float acceleration = 0, float deceleration = 0);
 	// the pins has to have a stepper attached
 
+	void sendStepperLimitSwitch(int stepperID, int pin, bool sideOfStepper, bool usesInputPullup);
+	//send the pin, 
+
+
 
 	// -- servo
 	void sendServo(int pin, int value, bool force = false);
@@ -342,7 +347,6 @@ public:
 	void sendI2CConfig(int delay);
 	bool isI2CConfigured();
 	void sendI2CWriteRequest(char slaveAddress, char * bytes);
-	void sendI2CWriteRequest(char slaveAddress, char bytes[]);
 	void sendI2CWriteRequest(char slaveAddress, vector<char> bytes);
 
 	void i2cWrite(char address, char * bytes);
