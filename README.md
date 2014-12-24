@@ -1,12 +1,12 @@
 Firmata-w-input_pullup
 ======================
 
-Altered Firmata to support the Input Pull-up on arduino boards
+Firmata with the addition of INPUT_PULLUP for convenience, also includes the firmata stepper addition written by @soundanalogous with some tweaks to allow for limit switches.
 
 Install
 ==================
 
-to install just move the Firamata.h file to the libraries of your arduino install
+to install just move the Firamata.h and Firmata.cpp files to the libraries of your arduino install
 
 on a pc it might be located here:
 C:\Program Files (x86)\Arduino\libraries\Firmata
