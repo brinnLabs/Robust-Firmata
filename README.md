@@ -1,4 +1,4 @@
-Firmata-w-input_pullup
+Robust Firmata
 ======================
 
 Firmata with the addition of INPUT_PULLUP for convenience, also includes the firmata stepper addition written by @soundanalogous with some tweaks to allow for limit switches.
@@ -30,3 +30,5 @@ just replace the old ofArduino files in the libs/openframeworks/communication fo
 can be used just like normal just use
 
 sendDigitalPinMode(pin, ARD_INPUT_PULLUP);
+
+see example for more in depth use of steppers
