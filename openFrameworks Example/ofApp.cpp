@@ -28,8 +28,8 @@
 //--------------------------------------------------------------
 void ofApp::setup(){
 
-	ofSetVerticalSync(true);
-	ofSetFrameRate(60);
+	/*ofSetVerticalSync(true);
+	ofSetFrameRate(60);*/
 
 	ofBackground(255, 0, 130);
 
@@ -43,15 +43,19 @@ void ofApp::setup(){
 	// replace the string below with the serial port for your Arduino board
 	// you can get this from the Arduino application or via command line
 	// for OSX, in your terminal type "ls /dev/tty.*" to get a list of serial devices
+
+	
+
 #ifdef TARGET_WIN32
+	//ard.connect("COM4", 57600);
 	vector<string> devices;
 	vector <ofSerialDeviceInfo> deviceList = serial.getDeviceList();
 	vector<string> temp = serial.getDeviceFriendlyNames();
 	for (int i = 0; i < temp.size(); i++){
 		//teensy's friendly name is USB Serial max speed = 125000
-		if (strstr(temp[i].c_str(), "Arduino") != NULL){
+		if (strstr(temp[i].c_str(), "Arduino") != NULL || strstr(temp[i].c_str(), "Serial") != NULL){
 			cout << "Setting up firmata on " << deviceList[i].getDeviceName() << endl;
-			arduinoAttached = ard.connect(deviceList[i].getDeviceName(), 57600); 
+			arduinoAttached = ard.connect(deviceList[i].getDevicePath(), 57600); 
 		}
 	}
 #else
@@ -66,17 +70,15 @@ void ofApp::setup(){
 
 //--------------------------------------------------------------
 void ofApp::update(){
-	updateArduino();
-	if (!bSetupArduino){
-		//the arduino is not recognized as being connected until the firmware version is returned.
-		//we need to send a request, otherwise it will attempt to setup an arduino
-		ard.sendFirmwareVersionRequest();
-		if (ard.isArduinoReady()){
-			ofLogNotice("Connecting") << "setting up arduino";
-			setupArduino(0);
+	if (arduinoAttached){
+		updateArduino();
+		if (!bSetupArduino){
+			if (ard.isArduinoReady()){
+				ofLogNotice("Connecting") << "setting up arduino";
+				setupArduino(0);
+			}
 		}
 	}
-
 }
 
 //--------------------------------------------------------------
@@ -98,7 +100,7 @@ void ofApp::setupArduino(const int & version) {
 
 	// set pins D2 and A5 to digital input
 	ard.sendDigitalPinMode(2, ARD_INPUT);
-	ard.sendDigitalPinMode(19, ARD_INPUT);  // pin 21 if using StandardFirmata from Arduino 0022 or older
+	ard.sendDigitalPinMode(19, ARD_INPUT_PULLUP);  // pin 21 if using StandardFirmata from Arduino 0022 or older
 
 	// set pin A0 to analog input
 	ard.sendAnalogPinReporting(0, ARD_ANALOG);
@@ -117,7 +119,7 @@ void ofApp::setupArduino(const int & version) {
 	// attach a stepper motor, we need to give it an id which starts at 0
 	// also need a step and a dir pin for driver boards or 2 wire steppers
 	// optional addition of the steps per revolution, usually 200 at 1.8 degrees per step
-	ard.sendStepper2Wire(0, 8, 7, 200);
+	ard.sendStepper2Wire(8, 7, 200);
 
 	//4 wire stepper also can be sent
 	//ard.sendStepper4Wire(0, 5, 6, 7, 8);
@@ -127,9 +129,15 @@ void ofApp::setupArduino(const int & version) {
 	//the side of the stepper and whether to use input_pullup
 	ard.sendStepperLimitSwitch(0, 4, true, true);
 
+	ard.attachEncoder(5, 6);
+
+	ard.enableEncoderReporting();
+
 	// Listen for changes on the digital and analog pins
 	ofAddListener(ard.EDigitalPinChanged, this, &ofApp::digitalPinChanged);
 	ofAddListener(ard.EAnalogPinChanged, this, &ofApp::analogPinChanged);
+	ofAddListener(ard.EEncoderDataRecieved, this, &ofApp::encoderDataRecieved);
+	ofAddListener(ard.EStepperIsDone, this, &ofApp::stepperFinished);
 }
 
 //--------------------------------------------------------------
@@ -167,6 +175,17 @@ void ofApp::analogPinChanged(const int & pinNum) {
 	potValue = "analog pin: " + ofToString(pinNum) + " = " + ofToString(ard.getAnalog(pinNum));
 }
 
+void ofApp::encoderDataRecieved(const vector<Encoder_Data> & data){
+	cout << "recieved " + ofToString(data.size()) +" encoder data" <<  endl;
+	for (int i = 0; i < data.size(); i++){
+		cout << "ID: " + ofToString(data[i].ID) + " Direction: " + ofToString(data[i].direction) + " Position: " + ofToString(data[i].position) << endl;
+	}
+	
+}
+void ofApp::stepperFinished(const int & stepperID){
+	cout << "recieved stepper data" << endl;
+}
+
 
 //--------------------------------------------------------------
 void ofApp::draw(){
@@ -182,8 +201,8 @@ void ofApp::draw(){
 		font.drawString("arduino not ready...\n", 515, 40);
 	}
 	else {
-		font.drawString(potValue + "\n" + buttonState +
-			"\nsending pwm: " + ofToString((int)(128 + 128 * sin(ofGetElapsedTimef()))), 515, 40);
+		/*font.drawString(potValue + "\n" + buttonState +
+			"\nsending pwm: " + ofToString((int)(128 + 128 * sin(ofGetElapsedTimef()))), 515, 40);*/
 
 		ofSetColor(64, 64, 64);
 		smallFont.drawString("If a servo is attached, use the left arrow key to rotate "
@@ -198,7 +217,7 @@ void ofApp::keyPressed(int key){
 	switch (key) {
 	case OF_KEY_UP:
 		// turn the stepper 200 steps
-		ard.sendStepperStep(0, CCW, 200, 255);
+		ard.sendStepperStep(0, CCW, 1000, 10000, 20, 20);
 		break;
 	case OF_KEY_DOWN:
 		// turn it the opposite direction
@@ -214,6 +233,9 @@ void ofApp::keyPressed(int key){
 		ard.sendServo(9, 0, false);
 		ard.sendDigital(18, ARD_LOW);  // pin 20 if using StandardFirmata from Arduino 0022 or older
 		break;
+	case ' ':
+		//ard.resetEncoderPosition(0);
+		ard.getAllEncoderPositions();
 	default:
 		break;
 	}

@@ -11,6 +11,9 @@ callbackFunction            KEYWORD1
 systemResetCallbackFunction KEYWORD1
 stringCallbackFunction      KEYWORD1
 sysexCallbackFunction       KEYWORD1
+Encoder						KEYWORD1
+OneWire						KEYWORD1
+
 
 #######################################
 # Methods and Functions (KEYWORD2)
@@ -35,6 +38,21 @@ write                       KEYWORD2
 sendValueAsTwo7bitBytes     KEYWORD2
 startSysex                  KEYWORD2
 endSysex                    KEYWORD2
+reset						KEYWORD2
+write_bit					KEYWORD2
+read_bit					KEYWORD2
+write						KEYWORD2
+write_bytes					KEYWORD2
+read						KEYWORD2
+read_bytes					KEYWORD2
+select						KEYWORD2
+skip						KEYWORD2
+depower						KEYWORD2
+reset_search				KEYWORD2
+search						KEYWORD2
+crc8						KEYWORD2
+crc16						KEYWORD2
+check_crc16					KEYWORD2
 
 
 #######################################
@@ -69,6 +87,10 @@ STEPPER_DATA    		LITERAL1
 STEPPER_CONFIG  		LITERAL1
 STEPPER_STEP    		LITERAL1
 STEPPER_LIMIT_SWITCH	LITERAL1
+
+ENCODER_USE_INTERRUPTS	LITERAL1
+ENCODER_OPTIMIZE_INTERRUPTS	LITERAL1
+ENCODER_DO_NOT_USE_INTERRUPTS	LITERAL1
 
 TOTAL_ANALOG_PINS   LITERAL1
 TOTAL_DIGITAL_PINS  LITERAL1

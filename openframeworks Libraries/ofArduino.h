@@ -40,7 +40,7 @@
 */
 
 #define FIRMATA_MAJOR_VERSION                           2 // for non-compatible changes
-#define FIRMATA_MINOR_VERSION                           0 // for backwards compatible changes
+#define FIRMATA_MINOR_VERSION                           4 // for backwards compatible changes
 #define FIRMATA_MAX_DATA_BYTES                          32 // max number of data bytes in non-Sysex messages
 // message command bytes (128-255/0x80-0xFF)
 #define FIRMATA_DIGITAL_MESSAGE                         0x90 // send data for a digital pin
@@ -66,20 +66,22 @@
 #define ONEWIRE											0x07 // pin configured for 1-wire
 #define STEPPER											0x08 // pin configured for stepper motor
 #define ENCODER											0x09 // pin configured for rotary encoders
-#define FIRMATA_INPUT_PULLUP							0xF0 // enable pullup resistors
+#define FIRMATA_INPUT_PULLUP							0x10 // enable pullup resistors
 #define FIRMATA_IGNORE									0x7F
-#define UNKOWN											0x10
+#define UNKOWN											0x1F
 
-#define TOTAL_PIN_MODES 13
+#define TOTAL_PIN_MODES 								13
 
-
-// extended command set using SysEx (0-127/0x00-0x7F)
-/* 0x00-0x0F reserved for custom commands */
-#define FIRMATA_SYSEX_SERVO_CONFIG                      0x70 // set max angle, minPulse, maxPulse, freq
+// extended command set using sysex (0-127/0x00-0x7F)
+/* 0x00-0x0F reserved for user-defined commands */
+#define ENCODER_DATA									0x61 // reply with encoders current positions
+#define FIRMATA_SYSEX_SERVO_CONFIG      				0x70 // set max angle, minPulse, maxPulse, freq
 #define FIRMATA_SYSEX_FIRMATA_STRING					0x71 // a string message with 14-bits per char
-#define SHIFT_DATA										0x75 // a bitstram to/from a shift register
+#define STEPPER_DATA									0x72 // control a stepper motor
+#define ONEWIRE_DATA									0x73 // send an OneWire read/write/reset/select/skip/search request
+#define SHIFT_DATA										0x75 // a bitstream to/from a shift register
 #define I2C_REQUEST										0x76 // send an I2C read/write request
-#define I2C_REPLY										0x77 // a reply to an I2C request
+#define I2C_REPLY										0x77 // a reply to an I2C read request
 #define I2C_CONFIG										0x78 // config I2C settings such as delay times and power pins
 #define EXTENDED_ANALOG									0x6F // analog write (PWM, Servo, etc) to any pin
 #define PIN_STATE_QUERY									0x6D // ask for a pin's current mode and value
@@ -90,8 +92,15 @@
 #define ANALOG_MAPPING_RESPONSE							0x6A // reply with mapping info
 #define FIRMATA_SYSEX_REPORT_FIRMWARE					0x79 // report name and version of the firmware
 #define SAMPLING_INTERVAL								0x7A // set the poll rate of the main loop 
-#define FIRMATA_SYSEX_NON_REALTIME                      0x7E // MIDI Reserved for non-realtime messages
-#define FIRMATA_SYSEX_REALTIME                          0x7F // MIDI Reserved for realtime messages
+#define SCHEDULER_DATA									0x7B // send a createtask/deletetask/addtotask/schedule/querytasks/querytask request to the scheduler
+#define FIRMATA_SYSEX_NON_REALTIME      				0x7E // MIDI Reserved for non-realtime messages
+#define FIRMATA_SYSEX_REALTIME         					0x7F // MIDI Reserved for realtime messages
+// these are DEPRECATED to make the naming more consistent
+#define FIRMATA_STRING									0x71 // same as STRING_DATA
+#define SYSEX_I2C_REQUEST								0x76 // same as I2C_REQUEST
+#define SYSEX_I2C_REPLY									0x77 // same as I2C_REPLY
+#define SYSEX_SAMPLING_INTERVAL							0x7A // same as SAMPLING_INTERVAL
+
 
 #define ONEWIRE_CONFIG_REQUEST							0x41
 #define ONEWIRE_DATA 									0x73
@@ -122,24 +131,49 @@
 #define ARD_SERVO                                       0x04 // digital pin in Servo output mode
 #define ARD_SHIFT                   					0x05 // shiftIn/shiftOut mode
 #define ARD_I2C                     					0x06 // pin included in I2C setup
-#define ARD_INPUT_PULLUP                                0x07 // digital pin with pull-up resistors enabled
+#define ARD_ONEWIRE										0x07 // pin configured for 1-wire
 #define ARD_STEPPER         							0x08  // pin configured for stepper motor
+#define ARD_ENCODER										0x09 // pin configured for rotary encoders
+#define ARD_INPUT_PULLUP								0x10 // enable pullup resistors
+#define ARD_IGNORE										0x7F
+#define UNKOWN											0x1F
 #define ARD_HIGH                                        1
 #define ARD_LOW                                         0
 #define ARD_ON                                          1
 #define ARD_OFF                                         0
 
-#define MAX_STEPPERS    		6     // arbitrary value... may need to adjust
-#define STEPPER_DATA    		0x72  // move this to Firmata.h
-#define STEPPER_CONFIG  		0
-#define STEPPER_STEP    		1
-#define STEPPER_LIMIT_SWITCH	2
 
-#define SYSEX_SERVO_ATTACH                      0x00
-#define SYSEX_SERVO_DETACH                      0x01
-#define SYSEX_SERVO_WRITE                       0x02
+#define MAX_STEPPERS    								6     // arbitrary value... may need to adjust
+#define STEPPER_CONFIG  								0
+#define STEPPER_STEP    								1
+#define STEPPER_LIMIT_SWITCH							2
 
-#define OF_ARDUINO_DELAY_LENGTH					10.0
+#define SYSEX_SERVO_ATTACH								0x00
+#define SYSEX_SERVO_DETACH								0x01
+#define SYSEX_SERVO_WRITE								0x02
+
+#define I2C_WRITE 										B00000000
+#define I2C_READ 										B00001000
+#define I2C_READ_CONTINUOUSLY 							B00010000
+#define I2C_STOP_READING 								B00011000
+#define I2C_READ_WRITE_MODE_MASK 						B00011000
+#define I2C_10BIT_ADDRESS_MODE_MASK						B00100000
+
+#define MAX_ENCODERS									5 // arbitrary value, may need to adjust
+#define ENCODER_ATTACH									0x00
+#define ENCODER_REPORT_POSITION							0x01
+#define ENCODER_REPORT_POSITIONS						0x02
+#define ENCODER_RESET_POSITION							0x03
+#define ENCODER_REPORT_AUTO								0x04
+#define ENCODER_DETACH									0x05
+#define ENCODER_DIRECTION_MASK							0x40 // B01000000
+#define ENCODER_CHANNEL_MASK							0x3F // B00111111
+
+#define MAX_QUERIES										8 // max number of i2c devices in read continuous mode
+#define MINIMUM_SAMPLING_INTERVAL						10
+#define REGISTER_NOT_SPECIFIED							-1
+
+#define OF_ARDUINO_DELAY_LENGTH							10.0
 
 enum Stepper_Interface {
 	DRIVER = 1,
@@ -164,6 +198,12 @@ struct I2C_Data{
 	string data;
 };
 
+struct Encoder_Data{
+	int ID;
+	bool direction;
+	int position;
+};
+
 
 class ofArduino{
 
@@ -186,6 +226,8 @@ public:
 
 	void update();
 	// polls data from the serial port, this has to be called periodically
+
+	void flushAll();
 
 	bool isInitialized();
 	// returns true if a succesfull connection has been established and the Wiring has reported a firmware
@@ -315,12 +357,14 @@ public:
 	ofEvent<const I2C_Data> EI2CDataRecieved;
 	// triggered when the I2C bus returns data after a read request
 
+	ofEvent<const vector<Encoder_Data>> EEncoderDataRecieved;
+	// triggered when the encoder returns data after a read request
 
 	// -- stepper
-	void sendStepper2Wire(int stepperID, int dirPin, int stepPin, int stepsPerRev = 200);
+	void sendStepper2Wire(int dirPin, int stepPin, int stepsPerRev = 200);
 	// the pins has to have a stepper attached
 
-	void sendStepper4Wire(int stepperID, int pin1, int pin2, int pin3, int pin4, int stepsPerRev = 200);
+	void sendStepper4Wire(int pin1, int pin2, int pin3, int pin4, int stepsPerRev = 200);
 	// the pins has to have a stepper attached
 
 	void sendStepperStep(int stepperID, int direction, int steps, int speed, float acceleration = 0, float deceleration = 0);
@@ -346,19 +390,32 @@ public:
 
 	void sendI2CConfig(int delay);
 	bool isI2CConfigured();
-	void sendI2CWriteRequest(char slaveAddress, char * bytes);
+	void sendI2CWriteRequest(char slaveAddress, unsigned char * bytes, int numOfBytes);
 	void sendI2CWriteRequest(char slaveAddress, vector<char> bytes);
-
-	void i2cWrite(char address, char * bytes);
-
+	void i2cWrite(char address, unsigned char * bytes, int numOfBytes);
 	void i2cWriteReg(char address, int reg, int byte);
+	void sendI2CReadRequest(char address, unsigned char numBytes);
+	void i2cRead(char address, unsigned char reg, int bytesToRead);
+	void i2cReadOnce(char address, unsigned char reg, int bytesToRead);
 
-	void sendI2CReadRequest(char address, char numBytes);
+	void sendOneWireConfig(int pin, bool enableParasiticPower);
+	void sendOneWireSearch(int pin);
+	void sendOneWireAlarmsSearch(int pin);
+	void sendOneWireSearch(char type, int pin);
+	void sendOneWireRead(int pin, unsigned char device, int numBytesToRead);
+	void sendOneWireReset(int pin);
+	void sendOneWireWrite(int pin, unsigned char device, unsigned char * data);
+	void sendOneWireDelay(int pin, int delay);
+	void sendOneWireWriteAndRead(int pin, unsigned char device, unsigned char * data, int numBytesToRead);
+	void sendOneWireRequest(int pin, unsigned char subcommand, unsigned char device, int numBytesToRead, unsigned char correlationId, int delay, unsigned char * dataToWrite);
 
-	void i2cRead(char address, char reg, int bytesToRead);
-
-	void i2cReadOnce(char address, char reg, int bytesToRead);
-
+	void attachEncoder(int pinA, int pinB);
+	void getEncoderPosition(int encoderNum);
+	void getAllEncoderPositions();
+	void resetEncoderPosition(int encoderNum);
+	void enableEncoderReporting();
+	void disableEncoderReporting();
+	void detachEncoder(int encoderNum);
 
 protected:
 	bool _initialized;
@@ -439,11 +496,13 @@ protected:
 	int _servoValue[TOTAL_DIGITAL_PINS];
 	// the last set servo values
 
-	float _temp;
-	// the last received temperature
+	int _numSteppers;
 
-	float _humidity;
-	// the last received humidity
+	int _numEncoders;
+
+	int _stepperID;
+
+	int _encoderID;
 
 };
 

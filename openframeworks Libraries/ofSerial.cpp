@@ -215,7 +215,7 @@ void ofSerial::buildDeviceList(){
 	ofLogNotice("ofSerial") << "found " << nPorts << " devices";
 	for (int i = 0; i < nPorts; i++){
 		//NOTE: we give the short port name for both as that is what the user should pass and the short name is more friendly
-		devices.push_back(ofSerialDeviceInfo(string(portNamesShort[i]), string(portNamesShort[i]), i));
+		devices.push_back(ofSerialDeviceInfo(string(portNamesShort[i]), string(portNamesFriendly[i]), i));
 	}
 	//---------------------------------------------
 	#endif
@@ -614,7 +614,9 @@ int ofSerial::readByte(){
 		if (!ReadFile(hComm, tmpByte, 1, &nRead, 0)){
 			ofLogError("ofSerial") << "readByte(): couldn't read from port";
 			return OF_SERIAL_ERROR;
-		}
+		} 
+		if (nRead == 0)
+			return OF_SERIAL_NO_DATA;
 	#endif
 	//---------------------------------------------
 
