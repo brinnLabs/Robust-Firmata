@@ -100,7 +100,7 @@ void ofApp::setupArduino(const int & version) {
 
 	// set pins D2 and A5 to digital input
 	ard.sendDigitalPinMode(2, ARD_INPUT);
-	ard.sendDigitalPinMode(19, ARD_INPUT_PULLUP);  // pin 21 if using StandardFirmata from Arduino 0022 or older
+	ard.sendDigitalPinMode(19, ARD_INPUT_PULLUP);  
 
 	// set pin A0 to analog input
 	ard.sendAnalogPinReporting(0, ARD_ANALOG);
@@ -108,7 +108,7 @@ void ofApp::setupArduino(const int & version) {
 	// set pin D13 as digital output
 	ard.sendDigitalPinMode(13, ARD_OUTPUT);
 	// set pin A4 as digital output
-	ard.sendDigitalPinMode(18, ARD_OUTPUT);  // pin 20 if using StandardFirmata from Arduino 0022 or older
+	ard.sendDigitalPinMode(18, ARD_OUTPUT);  
 
 	// set pin D11 as PWM (analog output)
 	ard.sendDigitalPinMode(11, ARD_PWM);
@@ -119,15 +119,10 @@ void ofApp::setupArduino(const int & version) {
 	// attach a stepper motor, we need to give it an id which starts at 0
 	// also need a step and a dir pin for driver boards or 2 wire steppers
 	// optional addition of the steps per revolution, usually 200 at 1.8 degrees per step
-	ard.sendStepper2Wire(8, 7, 200);
+	ard.sendStepper2Wire(8, 7, 3200, 3, 4);
 
 	//4 wire stepper also can be sent
 	//ard.sendStepper4Wire(0, 5, 6, 7, 8);
-
-	//We probably need limit switches for our motors, though are totally optional
-	//send the id of the stepper, the pin of the switch
-	//the side of the stepper and whether to use input_pullup
-	ard.sendStepperLimitSwitch(0, 4, true, true);
 
 	ard.attachEncoder(5, 6);
 
@@ -137,7 +132,7 @@ void ofApp::setupArduino(const int & version) {
 	ofAddListener(ard.EDigitalPinChanged, this, &ofApp::digitalPinChanged);
 	ofAddListener(ard.EAnalogPinChanged, this, &ofApp::analogPinChanged);
 	ofAddListener(ard.EEncoderDataRecieved, this, &ofApp::encoderDataRecieved);
-	ofAddListener(ard.EStepperIsDone, this, &ofApp::stepperFinished);
+	ofAddListener(ard.EStepperDataRecieved, this, &ofApp::stepperDataRecieved);
 }
 
 //--------------------------------------------------------------
@@ -182,8 +177,9 @@ void ofApp::encoderDataRecieved(const vector<Encoder_Data> & data){
 	}
 	
 }
-void ofApp::stepperFinished(const int & stepperID){
+void ofApp::stepperDataRecieved(const Stepper_Data & data){
 	cout << "recieved stepper data" << endl;
+	cout << "Type: " + ofToString(data.type) + " Data: " + ofToString(data.data) << endl;
 }
 
 
@@ -201,8 +197,8 @@ void ofApp::draw(){
 		font.drawString("arduino not ready...\n", 515, 40);
 	}
 	else {
-		/*font.drawString(potValue + "\n" + buttonState +
-			"\nsending pwm: " + ofToString((int)(128 + 128 * sin(ofGetElapsedTimef()))), 515, 40);*/
+		font.drawString(potValue + "\n" + buttonState +
+			"\nsending pwm: " + ofToString((int)(128 + 128 * sin(ofGetElapsedTimef()))), 515, 40);
 
 		ofSetColor(64, 64, 64);
 		smallFont.drawString("If a servo is attached, use the left arrow key to rotate "
@@ -216,12 +212,13 @@ void ofApp::draw(){
 void ofApp::keyPressed(int key){
 	switch (key) {
 	case OF_KEY_UP:
-		// turn the stepper 200 steps
-		ard.sendStepperStep(0, CCW, 1000, 10000, 20, 20);
+		// turn the stepper one revolution
+		//ard.sendStepperMove(0, CCW, 3200, 10000, 20, 20);
+		ard.sendStepperMove(0, CCW, 3200);
 		break;
 	case OF_KEY_DOWN:
 		// turn it the opposite direction
-		ard.sendStepperStep(0, CW, 200, 255);
+		ard.sendStepperMove(0, CW, 3200);
 		break;
 	case OF_KEY_RIGHT:
 		// rotate servo head to 180 degrees
@@ -236,6 +233,34 @@ void ofApp::keyPressed(int key){
 	case ' ':
 		//ard.resetEncoderPosition(0);
 		ard.getAllEncoderPositions();
+		break;
+	case '1':
+		ard.getStepperDistanceFrom(0);
+		break;
+	case '2':
+		ard.getStepperPosition(0);
+		break;
+	case '3':
+		ard.setStepperSpeed(0, 20000);
+		break;
+	case '4':
+		ard.setStepperSpeed(0, 10000);
+		break;
+	case '5':
+		ard.setStepperSpeed(0, 5000);
+		break;
+	case '6':
+		ard.setStepperAcceleration(0, 0);
+		break;
+	case '7':
+		ard.setStepperAcceleration(0, 1000);
+		break;
+	case '8':
+		ard.setStepperDeceleration(0, 0);
+		break;
+	case '9':
+		ard.setStepperDeceleration(0, 1000);
+		break;
 	default:
 		break;
 	}

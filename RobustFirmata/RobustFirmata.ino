@@ -76,7 +76,7 @@ struct ow_device_info
 
 ow_device_info pinOneWire[TOTAL_PINS];
 
-AccelStepper *stepper[MAX_STEPPERS];
+FirmataStepper *stepper[MAX_STEPPERS];
 byte numSteppers = 0;
 
 Encoder encoders[MAX_ENCODERS];
@@ -384,24 +384,22 @@ void setPinModeCallback(byte pin, int mode)
     }
     break;
   case FIRMATA_INPUT_PULLUP:
-    if (IS_PIN_DIGITAL(pin)) 
-    {
+    if (IS_PIN_DIGITAL(pin)) {
       pinMode(PIN_TO_DIGITAL(pin), INPUT_PULLUP); // disable output driver
       //digitalWrite(PIN_TO_DIGITAL(pin), HIGH); // enable internal pull-ups
       pinConfig[pin] = FIRMATA_INPUT_PULLUP;
     }
     break;
   case STEPPER:
-    if (IS_PIN_DIGITAL(pin)) 
-    {
+    if (IS_PIN_DIGITAL(pin)) {
       pinConfig[pin] = STEPPER;
     }
     break;
   case ENCODER:
-    if (IS_PIN_DIGITAL(pin)) //IS_PIN_INTERRUPT(pin) //encoders don't have to be on an interrupt pin
-    {
-      pinConfig[pin] = ENCODER;
-    }
+    //if (IS_PIN_INTERRUPT(pin)) 
+    //{
+    pinConfig[pin] = ENCODER;
+    //}
     break;
   case ONEWIRE:
     if (IS_PIN_DIGITAL(pin)) 
@@ -664,13 +662,13 @@ void sysexCallback(byte command, byte argc, byte *argv)
   case STEPPER_DATA:
     byte stepCommand, deviceNum, directionPin, stepPin, stepDirection;
     byte interface, interfaceType;
-    byte motorPin3, motorPin4, limitPin;
+    byte motorPin3, motorPin4, limitSwitch1, limitSwitch2;
     unsigned int stepsPerRev;
     long numSteps;
     int stepSpeed;
     int accel;
     int decel;
-    boolean side, usePullup;
+    boolean l1usePullup, l2usePullup;
 
     stepCommand = argv[0];
     deviceNum = argv[1];
@@ -693,39 +691,47 @@ void sysexCallback(byte command, byte argc, byte *argv)
           numSteppers++; // assumes steppers are added in order 0 -> 5
         }
 
-        if (interfaceType ==  AccelStepper::DRIVER || interfaceType == AccelStepper::FULL2WIRE)
+        if (interfaceType == FirmataStepper::DRIVER || interfaceType == FirmataStepper::TWO_WIRE)
         {
-          stepper[deviceNum] = new AccelStepper(interface, directionPin, stepPin);
+          limitSwitch1= argv[7];
+          limitSwitch2 = argv[8];
+          l1usePullup = argv[9];
+          l2usePullup = argv[10];
+          stepper[deviceNum] = new FirmataStepper(interface, stepsPerRev, directionPin, stepPin, limitSwitch1, limitSwitch2, l1usePullup, l2usePullup);
         }
-        else if (interfaceType == AccelStepper::FULL4WIRE || interfaceType == AccelStepper::HALF4WIRE)
+        else if (interfaceType == FirmataStepper::FOUR_WIRE)
         {
           motorPin3 = argv[7];
           motorPin4 = argv[8];
+          limitSwitch1= argv[9];
+          limitSwitch2 = argv[10];
+          l1usePullup = argv[11];
+          l2usePullup = argv[12];
           setPinModeCallback(motorPin3, STEPPER);
           setPinModeCallback(motorPin4, STEPPER);
-          stepper[deviceNum] = new AccelStepper(interface, directionPin, stepPin, motorPin3, motorPin4);
+          stepper[deviceNum] = new FirmataStepper(interface, stepsPerRev, directionPin, stepPin, motorPin3, motorPin4, limitSwitch1, limitSwitch2, l1usePullup, l2usePullup);
         }
       }
       else if (stepCommand == STEPPER_MOVE)
       {
         stepDirection = argv[2];
         numSteps = (long)argv[3] | ((long)argv[4] << 7) | ((long)argv[5] << 14);
+
         if (stepDirection == 0)
         {
           numSteps *= -1;
         }
         if (stepper[deviceNum])
         {
-          if (argc >= 8 && argc < 12)
+          if (argc < 8)
           {
-            stepper[deviceNum]->move(numSteps);
-            }
-          else if (argc >= 8 && argc < 12)
+            stepper[deviceNum]->setStepsToMove(numSteps);
+          }
+          if (argc >= 8 && argc < 12)
           {
             stepSpeed = (argv[6] + (argv[7] << 7));
             // num steps, speed (0.01*rad/sec)
-            stepper[deviceNum]->move(numSteps);
-            stepper[deviceNum]->setSpeed(stepSpeed);
+            stepper[deviceNum]->setStepsToMove(numSteps, stepSpeed);
           }
           else if (argc == 12)
           {
@@ -733,63 +739,56 @@ void sysexCallback(byte command, byte argc, byte *argv)
             accel = (argv[8] + (argv[9] << 7));
             decel = (argv[10] + (argv[11] << 7));
             // num steps, speed (0.01*rad/sec), accel (0.01*rad/sec^2), decel (0.01*rad/sec^2)
-            stepper[deviceNum]->move(numSteps);
-            stepper[deviceNum]->setSpeed(stepSpeed); 
-            stepper[deviceNum]->setAcceleration(accel);
-            stepper[deviceNum]->setDeceleration(decel);
+            stepper[deviceNum]->setStepsToMove(numSteps, stepSpeed, accel, decel);
           }
         }
       } 
       else if (stepCommand == STEPPER_GET_POSITION)
       {
-        int curPosition = stepper[deviceNum]->currentPosition();
+        long curPosition = stepper[deviceNum]->getPosition();
         Serial.write(START_SYSEX);
         Serial.write(STEPPER_DATA);
         Serial.write(STEPPER_GET_POSITION);
         Serial.write(deviceNum);
-        Firmata.sendValueAsTwo7bitBytes(curPosition);
+        long absValue = abs(curPosition);
+        Serial.write((byte)absValue & 0x7F);
+        Serial.write((byte)(absValue >> 7) & 0x7F);
+        Serial.write((byte)(absValue >> 14) & 0x7F);
+        Serial.write((byte)(absValue >> 21) & 0x7F);
         //this is a signed value we need the bit flag
-        Serial.write((curPosition >> 15) & 0x01);
+        Serial.write(curPosition >= 0? 0x01 : 0x00);
         Serial.write(END_SYSEX);
+
+        char str[64];
+        sprintf(str, "%d", curPosition);
+        Firmata.sendString(str);
+
       }
       else if (stepCommand == STEPPER_GET_DISTANCE_TO)
       {
-        int distTo = stepper[deviceNum]->distanceToGo();
+        long distTo = stepper[deviceNum]->getDistanceTo();
         Serial.write(START_SYSEX);
         Serial.write(STEPPER_DATA);
         Serial.write(STEPPER_GET_DISTANCE_TO);
         Serial.write(deviceNum);
-        Firmata.sendValueAsTwo7bitBytes(distTo);
+        long absValue = abs(distTo);
+        Serial.write((byte)absValue & 0x7F);
+        Serial.write((byte)(absValue >> 7) & 0x7F);
+        Serial.write((byte)(absValue >> 14) & 0x7F);
+        Serial.write((byte)(absValue >> 21) & 0x7F);
         //this is a signed value we need the bit flag
-        Serial.write((distTo >> 15) & 0x01);
+        Serial.write(distTo >= 0? 0x01 : 0x00);
         Serial.write(END_SYSEX);
-      }
-      else if (stepCommand == STEPPER_GET_SPEED)
-      {
-        int curSpeed = stepper[deviceNum]->speed();
-        Serial.write(START_SYSEX);
-        Serial.write(STEPPER_DATA);
-        Serial.write(STEPPER_GET_SPEED);
-        Serial.write(deviceNum);
-        Firmata.sendValueAsTwo7bitBytes(curSpeed);
-        Serial.write(END_SYSEX);
-      }
-      else if (stepCommand == STEPPER_SET_POSITION)
-      {
-        int newPos = (argv[2] + (argv[3] << 7));
-        newPos *= argv[4] ? 1 : -1;
-        stepper[deviceNum]->setCurrentPosition(newPos);
+
+        char str[64];
+        sprintf(str, "%d", distTo);
+        Firmata.sendString(str);
 
       }
       else if (stepCommand == STEPPER_SET_SPEED)
       {
         int newSpeed = (argv[2] + (argv[3] << 7));
         stepper[deviceNum]->setSpeed(newSpeed);
-      }
-      else if (stepCommand == STEPPER_SET_MAX_SPEED)
-      {
-        int newMaxSpeed = (argv[2] + (argv[3] << 7));
-        stepper[deviceNum]->setMaxSpeed(newMaxSpeed);
       }
       else if (stepCommand == STEPPER_SET_ACCEL)
       {
@@ -814,7 +813,7 @@ void sysexCallback(byte command, byte argc, byte *argv)
       encoderNum = argv[1];
       pinA = argv[2];
       pinB = argv[3];
-      if (IS_PIN_DIGITAL(pinA) && IS_PIN_DIGITAL(pinB))
+      if (pinConfig[pinA]!=IGNORE && pinConfig[pinB]!=IGNORE)
       {
         attachEncoder(encoderNum, pinA, pinB);
       }      
@@ -1118,6 +1117,10 @@ void reportEncoderPositions()
   {
     if (isEncoderAttached(encoderNum))
     {
+      //int32_t encPosition = encoders[encoderNum].read();
+      /*char str[64];
+       sprintf(str, "%d", encPosition);
+       Firmata.sendString(str);*/
       if (positions[encoderNum] != prevPositions[encoderNum])
       {
         if (!report)
@@ -1269,9 +1272,9 @@ void loop()
     {
       if (stepper[i])
       {
-        bool done = stepper[i]->run();
+        bool done = stepper[i]->update();
         // send command to client application when stepping is complete
-        if (!done)
+        if (done)
         {
           Serial.write(START_SYSEX);
           Serial.write(STEPPER_DATA);
@@ -1322,8 +1325,6 @@ void loop()
     }
   }
 }
-
-
 
 
 

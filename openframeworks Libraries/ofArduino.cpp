@@ -128,7 +128,7 @@ void ofArduino::disconnect(){
 }
 
 void ofArduino::update(){
-	
+
 	//the computer should be able to read the entire buffer faster than it can be filled
 	while (_port.available()) {
 
@@ -143,7 +143,7 @@ void ofArduino::update(){
 			break;
 		}
 	}
-	
+
 }
 
 int ofArduino::getAnalog(int pin){
@@ -440,6 +440,7 @@ void ofArduino::processSysExData(vector<unsigned char> data){
 	Encoder_Data tempEncoderReply;
 	int encoderPos = 0;
 	unsigned char encBuffer[4];
+	unsigned char stepBuffer[4];
 	Stepper_Data stepperData;
 	// act on reserved sysEx messages (extended commands) or trigger SysEx event...
 	switch (data.front()) { //first byte in buffer is command
@@ -513,34 +514,63 @@ void ofArduino::processSysExData(vector<unsigned char> data){
 		}
 		break;
 	case STEPPER_DATA:
-		it = data.begin();
-		it++; // skip the first byte, which is the string command
-		//as is currently implemented will only ever be 1 byte long
-		switch (*it){
-		case STEPPER_GET_POSITION:
-			stepperData.type = STEPPER_GET_POSITION;
-			stepperData.data = getValueFromTwo7bitBytes(*++it, *++it);
-			stepperData.data *= *++it ? 1 : -1;
-			ofNotifyEvent(EStepperDataRecieved, stepperData, this);
-		case STEPPER_GET_DISTANCE_TO:
-			stepperData.type = STEPPER_GET_DISTANCE_TO;
-			stepperData.data = getValueFromTwo7bitBytes(*++it, *++it);
-			stepperData.data *= *++it ? 1 : -1;
-			ofNotifyEvent(EStepperDataRecieved, stepperData, this);
-		case STEPPER_GET_SPEED:
-			stepperData.type = STEPPER_GET_SPEED;
-			stepperData.data = getValueFromTwo7bitBytes(*++it, *++it);
-			ofNotifyEvent(EStepperDataRecieved, stepperData, this);
-		case STEPPER_DONE:
-			stepperData.type = STEPPER_DONE;
-			stepperData.data = (*it & 0x7F);
-			ofNotifyEvent(EStepperDataRecieved, stepperData, this);
-			break;
-		default:
-			ofLogNotice("Arduino") << "Unrecognized Command Data";
-		}
-		
+		cout << data.size() << endl;
+		if (data.size() <= 8 && data.size() >= 3){
+			it = data.begin();
+			it++; // skip the first byte, which is the string command
+			//as is currently implemented will only ever be 1 byte long
+			switch (*it){
+			case STEPPER_GET_POSITION:
+				stepperData.type = STEPPER_GET_POSITION;
+				stepperData.id = *++it;
+				stepBuffer[0] = *it++ & 0x7F;
+				stepBuffer[1] = *it++ & 0x7F;
+				stepBuffer[2] = *it++ & 0x7F;
+				stepBuffer[3] = *it++ & 0x7F;
 
+				stepperData.data = stepBuffer[3];
+				stepperData.data <<= 7;
+				stepperData.data |= stepBuffer[2];
+				stepperData.data <<= 7;
+				stepperData.data |= stepBuffer[1];
+				stepperData.data <<= 7;
+				stepperData.data |= stepBuffer[0];
+
+				stepperData.data *= *++it ? 1 : -1;
+				ofNotifyEvent(EStepperDataRecieved, stepperData, this);
+				break;
+			case STEPPER_GET_DISTANCE_TO:
+				stepperData.type = STEPPER_GET_DISTANCE_TO;
+				stepperData.id = *++it;
+				stepBuffer[0] = *it++ & 0x7F;
+				stepBuffer[1] = *it++ & 0x7F;
+				stepBuffer[2] = *it++ & 0x7F;
+				stepBuffer[3] = *it++ & 0x7F;
+
+				stepperData.data = stepBuffer[3];
+				stepperData.data <<= 7;
+				stepperData.data |= stepBuffer[2];
+				stepperData.data <<= 7;
+				stepperData.data |= stepBuffer[1];
+				stepperData.data <<= 7;
+				stepperData.data |= stepBuffer[0];
+
+				stepperData.data *= *++it ? 1 : -1;
+				ofNotifyEvent(EStepperDataRecieved, stepperData, this);
+				break;
+			case STEPPER_DONE:
+				stepperData.type = STEPPER_DONE;
+				stepperData.id = (*++it & 0x7F);
+				ofNotifyEvent(EStepperDataRecieved, stepperData, this);
+				break;
+			default:
+				ofLogNotice("Stepper") << "Unrecognized Command Data";
+				break;
+			}
+		}
+		else {
+			ofLogError("Arduino") << "Incorrect Number of Bytes recieved, possible buffer overflow";
+		}
 		break;
 	case ENCODER_DATA:
 		if (data.size() % 5 == 1){
@@ -707,7 +737,7 @@ int ofArduino::getServo(int pin){
 		return -1;
 }
 
-void  ofArduino::sendStepper2Wire(int dirPin, int stepPin, int stepsPerRev){
+void  ofArduino::sendStepper2Wire(int dirPin, int stepPin, int stepsPerRev, int limitSwitch1, int limitSwitch2, bool switch1UsesPullup, bool switch2UsesPullup){
 
 	if (_stepperID < MAX_STEPPERS){
 		sendByte(FIRMATA_START_SYSEX);
@@ -718,7 +748,19 @@ void  ofArduino::sendStepper2Wire(int dirPin, int stepPin, int stepsPerRev){
 		sendValueAsTwo7bitBytes(stepsPerRev);
 		sendByte(dirPin);
 		sendByte(stepPin);
+		sendByte(limitSwitch1);
+		sendByte(limitSwitch2);
+		sendByte(switch1UsesPullup);
+		sendByte(switch2UsesPullup);
 		sendByte(FIRMATA_END_SYSEX);
+
+		if (limitSwitch1 != 0)
+			switch1UsesPullup ? _digitalPinMode[limitSwitch1] = ARD_INPUT_PULLUP : _digitalPinMode[limitSwitch1] = ARD_INPUT;
+		
+		if (limitSwitch2 != 0)
+			switch2UsesPullup ? _digitalPinMode[limitSwitch2] = ARD_INPUT_PULLUP : _digitalPinMode[limitSwitch2] = ARD_INPUT;
+		
+
 		_digitalPinMode[dirPin] = ARD_OUTPUT;
 		_digitalPinMode[stepPin] = ARD_OUTPUT;
 		_stepperID++;
@@ -728,7 +770,7 @@ void  ofArduino::sendStepper2Wire(int dirPin, int stepPin, int stepsPerRev){
 	}
 }
 
-void  ofArduino::sendStepper4Wire(int pin1, int pin2, int pin3, int pin4, int stepsPerRev){
+void  ofArduino::sendStepper4Wire(int pin1, int pin2, int pin3, int pin4, int stepsPerRev, int limitSwitch1, int limitSwitch2, bool switch1UsesPullup, bool switch2UsesPullup){
 
 	if (_stepperID < MAX_STEPPERS){
 		sendByte(FIRMATA_START_SYSEX);
@@ -741,7 +783,19 @@ void  ofArduino::sendStepper4Wire(int pin1, int pin2, int pin3, int pin4, int st
 		sendByte(pin2);
 		sendByte(pin3);
 		sendByte(pin4);
+		sendByte(limitSwitch1);
+		sendByte(limitSwitch2);
+		sendByte(switch1UsesPullup);
+		sendByte(switch2UsesPullup);
 		sendByte(FIRMATA_END_SYSEX);
+
+		if (limitSwitch1 != 0)
+			switch1UsesPullup ? _digitalPinMode[limitSwitch1] = ARD_INPUT_PULLUP : _digitalPinMode[limitSwitch1] = ARD_INPUT;
+		
+		if (limitSwitch2 != 0)
+			switch2UsesPullup ? _digitalPinMode[limitSwitch2] = ARD_INPUT_PULLUP : _digitalPinMode[limitSwitch2] = ARD_INPUT;
+		
+
 		_digitalPinMode[pin1] = ARD_OUTPUT;
 		_digitalPinMode[pin2] = ARD_OUTPUT;
 		_digitalPinMode[pin3] = ARD_OUTPUT;
@@ -754,7 +808,7 @@ void  ofArduino::sendStepper4Wire(int pin1, int pin2, int pin3, int pin4, int st
 
 }
 
-void  ofArduino::sendStepperStep(int stepperID, int direction, int numSteps, int speed, float acceleration, float deceleration) {
+void ofArduino::sendStepperMove(int stepperID, int direction, int numSteps, int speed, float acceleration, float deceleration) {
 
 	if (stepperID <= _stepperID && stepperID >= 0){
 		unsigned char steps[3] = { abs(numSteps) & 0x0000007F, (abs(numSteps) >> 7) & 0x0000007F, (abs(numSteps) >> 14) & 0x0000007F };
@@ -778,7 +832,7 @@ void  ofArduino::sendStepperStep(int stepperID, int direction, int numSteps, int
 			sendByte(FIRMATA_END_SYSEX);
 
 		}
-		else {
+		else if (speed != 0){
 			sendByte(FIRMATA_START_SYSEX);
 			sendByte(STEPPER_DATA);
 			sendByte(STEPPER_MOVE);
@@ -790,8 +844,72 @@ void  ofArduino::sendStepperStep(int stepperID, int direction, int numSteps, int
 			sendValueAsTwo7bitBytes(speed);
 			sendByte(FIRMATA_END_SYSEX);
 		}
+		else{
+			sendByte(FIRMATA_START_SYSEX);
+			sendByte(STEPPER_DATA);
+			sendByte(STEPPER_MOVE);
+			sendByte(stepperID);
+			sendByte(direction);
+			sendByte(steps[0]);
+			sendByte(steps[1]);
+			sendByte(steps[2]);
+			sendByte(FIRMATA_END_SYSEX);
+		}
 	}
 
+}
+
+void ofArduino::getStepperPosition(int stepperID){
+	if (_stepperID < MAX_STEPPERS){
+		sendByte(FIRMATA_START_SYSEX);
+		sendByte(STEPPER_DATA);
+		sendByte(STEPPER_GET_POSITION);
+		sendByte(stepperID);
+		sendByte(FIRMATA_END_SYSEX);
+	}
+}
+
+void ofArduino::getStepperDistanceFrom(int stepperID){
+	if (_stepperID < MAX_STEPPERS){
+		sendByte(FIRMATA_START_SYSEX);
+		sendByte(STEPPER_DATA);
+		sendByte(STEPPER_GET_DISTANCE_TO);
+		sendByte(stepperID);
+		sendByte(FIRMATA_END_SYSEX);
+	}
+}
+
+void ofArduino::setStepperSpeed(int stepperID, unsigned int speed){
+	if (_stepperID < MAX_STEPPERS){
+		sendByte(FIRMATA_START_SYSEX);
+		sendByte(STEPPER_DATA);
+		sendByte(STEPPER_SET_SPEED);
+		sendByte(stepperID);
+		sendValueAsTwo7bitBytes(speed);
+		sendByte(FIRMATA_END_SYSEX);
+	}
+}
+
+void ofArduino::setStepperAcceleration(int stepperID, unsigned int accel){
+	if (_stepperID < MAX_STEPPERS){
+		sendByte(FIRMATA_START_SYSEX);
+		sendByte(STEPPER_DATA);
+		sendByte(STEPPER_SET_ACCEL);
+		sendByte(stepperID);
+		sendValueAsTwo7bitBytes(accel);
+		sendByte(FIRMATA_END_SYSEX);
+	}
+}
+
+void ofArduino::setStepperDeceleration(int stepperID, unsigned int decel){
+	if (_stepperID < MAX_STEPPERS){
+		sendByte(FIRMATA_START_SYSEX);
+		sendByte(STEPPER_DATA);
+		sendByte(STEPPER_SET_DECEL);
+		sendByte(stepperID);
+		sendValueAsTwo7bitBytes(decel);
+		sendByte(FIRMATA_END_SYSEX);
+	}
 }
 
 //void ofArduino::sendStepperLimitSwitch(int stepperID, int pin, bool sideOfStepper, bool usesInputPullup) {

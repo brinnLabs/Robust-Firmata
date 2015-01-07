@@ -142,7 +142,6 @@
 #define ARD_ON                                          1
 #define ARD_OFF                                         0
 
-
 #define MAX_STEPPERS    								6     // arbitrary value... may need to adjust
 #define STEPPER_DATA    								0x72  // move this to Firmata.h
 #define STEPPER_CONFIG  								0
@@ -150,12 +149,9 @@
 #define STEPPER_DONE									10
 #define STEPPER_GET_POSITION							2
 #define STEPPER_GET_DISTANCE_TO							3
-#define STEPPER_GET_SPEED								4
-#define STEPPER_SET_POSITION							5
-#define STEPPER_SET_MAX_SPEED							6
-#define STEPPER_SET_SPEED								7
-#define STEPPER_SET_ACCEL								8
-#define STEPPER_SET_DECEL								9
+#define STEPPER_SET_SPEED								4
+#define STEPPER_SET_ACCEL								5
+#define STEPPER_SET_DECEL								6
 
 #define SYSEX_SERVO_ATTACH								0x00
 #define SYSEX_SERVO_DETACH								0x01
@@ -214,7 +210,8 @@ struct Encoder_Data{
 };
 
 struct Stepper_Data{
-	unsigned char type;
+	int id;
+	int type;
 	int data;
 };
 
@@ -375,18 +372,32 @@ public:
 	// triggered when the encoder returns data after a read request
 
 	// -- stepper
-	void sendStepper2Wire(int dirPin, int stepPin, int stepsPerRev = 200);
+	void sendStepper2Wire(int dirPin, int stepPin, int stepsPerRev = 200, int limitSwitch1 = 0, int limitSwitch2 = 0, bool switch1UsesPullup = true, bool switch2UsesPullup = true);
 	// the pins has to have a stepper attached
 
-	void sendStepper4Wire(int pin1, int pin2, int pin3, int pin4, int stepsPerRev = 200);
+	void sendStepper4Wire(int pin1, int pin2, int pin3, int pin4, int stepsPerRev = 200, int limitSwitch1 = 0, int limitSwitch2 = 0, bool switch1UsesPullup = true, bool switch2UsesPullup = true);
 	// the pins has to have a stepper attached
 
-	void sendStepperStep(int stepperID, int direction, int steps, int speed, float acceleration = 0, float deceleration = 0);
-	// the pins has to have a stepper attached
+	void sendStepperMove(int stepperID, int direction, int steps, int speed=0, float acceleration = 0, float deceleration = 0);
+	// set the steps to move
 
-	void sendStepperLimitSwitch(int stepperID, int pin, bool sideOfStepper, bool usesInputPullup);
+	void getStepperPosition(int stepperID);
+	// get the steppers current position
+
+	void getStepperDistanceFrom(int stepperID);
+	//get the steppers current distance from the target
+
+	void setStepperSpeed(int stepperID, unsigned int speed);
+	// set the steppers current speed in steps per second
+
+	void setStepperAcceleration(int stepperID, unsigned int accel);
+	// set the acceleration in steps per second per second
+
+	void setStepperDeceleration(int stepperID, unsigned int decel);
+	// set the deceleration in steps per second per second
+
+	//void sendStepperLimitSwitch(int stepperID, int pin, bool sideOfStepper, bool usesInputPullup);
 	//send the pin, 
-
 
 
 	// -- servo
