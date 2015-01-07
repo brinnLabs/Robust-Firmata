@@ -11,18 +11,18 @@
 
 /*
   Copyright (C) 2006-2008 Hans-Christoph Steiner.  All rights reserved.
-  Copyright (C) 2010-2011 Paul Stoffregen.  All rights reserved.
-  Copyright (C) 2009 Shigeru Kobayashi.  All rights reserved.
-  Copyright (C) 2009-2014 Jeff Hoefs.  All rights reserved.
-
-  This library is free software; you can redistribute it and/or
-  modify it under the terms of the GNU Lesser General Public
-  License as published by the Free Software Foundation; either
-  version 2.1 of the License, or (at your option) any later version.
-
-  See file LICENSE.txt for further informations on licensing terms.
-
-  formatted using the GNU C formatting and indenting
+ Copyright (C) 2010-2011 Paul Stoffregen.  All rights reserved.
+ Copyright (C) 2009 Shigeru Kobayashi.  All rights reserved.
+ Copyright (C) 2009-2014 Jeff Hoefs.  All rights reserved.
+ 
+ This library is free software; you can redistribute it and/or
+ modify it under the terms of the GNU Lesser General Public
+ License as published by the Free Software Foundation; either
+ version 2.1 of the License, or (at your option) any later version.
+ 
+ See file LICENSE.txt for further informations on licensing terms.
+ 
+ formatted using the GNU C formatting and indenting
  */
 
 #include <Servo.h>
@@ -67,8 +67,23 @@ boolean isI2CEnabled = false;
 signed char queryIndex = -1;
 unsigned int i2cReadDelayTime = 0;  // default delay time between i2c read request and Wire.requestFrom()
 
-FirmataStepper *stepper[MAX_STEPPERS];
+struct ow_device_info
+{
+  OneWire* device;
+  byte addr[8];
+  boolean power;
+};
+
+ow_device_info pinOneWire[TOTAL_PINS];
+
+AccelStepper *stepper[MAX_STEPPERS];
 byte numSteppers = 0;
+
+Encoder encoders[MAX_ENCODERS];
+int32_t positions[MAX_ENCODERS];
+int32_t prevPositions[MAX_ENCODERS];
+byte numAttachedEncoders=0;
+byte reportEncoders = 0x00;
 
 Servo servos[MAX_SERVOS];
 byte servoPinMap[TOTAL_PINS];
@@ -128,6 +143,60 @@ void detachServo(byte pin)
   }
 
   servoPinMap[pin] = 255;
+}
+
+/**
+ * TO-DO
+ * ==============
+ * Track encoders attaching and detatching, perhaps use a similar method to servos
+ * 
+ **/
+
+void attachEncoder(byte encoderNum, byte pinANum, byte pinBNum)
+{
+  if (isEncoderAttached(encoderNum))
+  {
+    Firmata.sendString("Encoder Warning: encoder is already attached. Operation cancelled.");
+    return;
+  }
+
+  if (!IS_PIN_INTERRUPT(pinANum) || !IS_PIN_INTERRUPT(pinBNum))
+  {
+    Firmata.sendString("Encoder Warning: For better performences, you should only use Interrput pins.");
+  }
+  setPinModeCallback(pinANum, ENCODER);
+  setPinModeCallback(pinBNum, ENCODER);
+  encoders[encoderNum] = Encoder(pinANum, pinBNum);
+  numAttachedEncoders++;
+  reportEncoderPosition(encoderNum);
+}
+
+/**
+ * TO-DO
+ * ==============
+ * How should we detach them? now it just gives it an empty object, need a way to make it null
+ * 
+ **/
+
+void detachEncoder(byte encoderNum)
+{
+  if (isEncoderAttached(encoderNum))
+  {
+    //free(encoders[encoderNum]);
+    encoders[encoderNum] = Encoder();
+    numAttachedEncoders--;
+  }
+}
+
+void oneWireConfig(byte pin, boolean power){
+  ow_device_info *info = &pinOneWire[pin];
+  if (info->device==NULL) {
+    info->device = new OneWire(pin);
+  }
+  for (int i=0;i<8;i++) {
+    info->addr[i]=0x0;
+  }
+  info->power = power;
 }
 
 void readAndReportData(byte address, int theRegister, byte numBytes)
@@ -314,11 +383,31 @@ void setPinModeCallback(byte pin, int mode)
       pinConfig[pin] = I2C;
     }
     break;
-    case FIRMATA_INPUT_PULLUP:
-    if (IS_PIN_DIGITAL(pin)) {
-      pinMode(PIN_TO_DIGITAL(pin), INPUT); // disable output driver
-      digitalWrite(PIN_TO_DIGITAL(pin), HIGH); // enable internal pull-ups
+  case FIRMATA_INPUT_PULLUP:
+    if (IS_PIN_DIGITAL(pin)) 
+    {
+      pinMode(PIN_TO_DIGITAL(pin), INPUT_PULLUP); // disable output driver
+      //digitalWrite(PIN_TO_DIGITAL(pin), HIGH); // enable internal pull-ups
       pinConfig[pin] = FIRMATA_INPUT_PULLUP;
+    }
+    break;
+  case STEPPER:
+    if (IS_PIN_DIGITAL(pin)) 
+    {
+      pinConfig[pin] = STEPPER;
+    }
+    break;
+  case ENCODER:
+    if (IS_PIN_DIGITAL(pin)) //IS_PIN_INTERRUPT(pin) //encoders don't have to be on an interrupt pin
+    {
+      pinConfig[pin] = ENCODER;
+    }
+    break;
+  case ONEWIRE:
+    if (IS_PIN_DIGITAL(pin)) 
+    {
+      oneWireConfig(pin,ONEWIRE_POWER);
+      pinConfig[pin] = ONEWIRE;
     }
     break;
   default:
@@ -575,12 +664,13 @@ void sysexCallback(byte command, byte argc, byte *argv)
   case STEPPER_DATA:
     byte stepCommand, deviceNum, directionPin, stepPin, stepDirection;
     byte interface, interfaceType;
-    byte motorPin3, motorPin4;
+    byte motorPin3, motorPin4, limitPin;
     unsigned int stepsPerRev;
     long numSteps;
     int stepSpeed;
     int accel;
     int decel;
+    boolean side, usePullup;
 
     stepCommand = argv[0];
     deviceNum = argv[1];
@@ -603,25 +693,23 @@ void sysexCallback(byte command, byte argc, byte *argv)
           numSteppers++; // assumes steppers are added in order 0 -> 5
         }
 
-        if (interfaceType == FirmataStepper::DRIVER || interfaceType == FirmataStepper::TWO_WIRE)
+        if (interfaceType ==  AccelStepper::DRIVER || interfaceType == AccelStepper::FULL2WIRE)
         {
-          stepper[deviceNum] = new FirmataStepper(interface, stepsPerRev, directionPin, stepPin);
+          stepper[deviceNum] = new AccelStepper(interface, directionPin, stepPin);
         }
-        else if (interfaceType == FirmataStepper::FOUR_WIRE)
+        else if (interfaceType == AccelStepper::FULL4WIRE || interfaceType == AccelStepper::HALF4WIRE)
         {
           motorPin3 = argv[7];
           motorPin4 = argv[8];
           setPinModeCallback(motorPin3, STEPPER);
           setPinModeCallback(motorPin4, STEPPER);
-          stepper[deviceNum] = new FirmataStepper(interface, stepsPerRev, directionPin, stepPin, motorPin3, motorPin4);
+          stepper[deviceNum] = new AccelStepper(interface, directionPin, stepPin, motorPin3, motorPin4);
         }
       }
-      else if (stepCommand == STEPPER_STEP)
+      else if (stepCommand == STEPPER_MOVE)
       {
         stepDirection = argv[2];
         numSteps = (long)argv[3] | ((long)argv[4] << 7) | ((long)argv[5] << 14);
-        stepSpeed = (argv[6] + (argv[7] << 7));
-
         if (stepDirection == 0)
         {
           numSteps *= -1;
@@ -630,22 +718,237 @@ void sysexCallback(byte command, byte argc, byte *argv)
         {
           if (argc >= 8 && argc < 12)
           {
+            stepper[deviceNum]->move(numSteps);
+            }
+          else if (argc >= 8 && argc < 12)
+          {
+            stepSpeed = (argv[6] + (argv[7] << 7));
             // num steps, speed (0.01*rad/sec)
-            stepper[deviceNum]->setStepsToMove(numSteps, stepSpeed);
+            stepper[deviceNum]->move(numSteps);
+            stepper[deviceNum]->setSpeed(stepSpeed);
           }
           else if (argc == 12)
           {
+            stepSpeed = (argv[6] + (argv[7] << 7));
             accel = (argv[8] + (argv[9] << 7));
             decel = (argv[10] + (argv[11] << 7));
             // num steps, speed (0.01*rad/sec), accel (0.01*rad/sec^2), decel (0.01*rad/sec^2)
-            stepper[deviceNum]->setStepsToMove(numSteps, stepSpeed, accel, decel);
+            stepper[deviceNum]->move(numSteps);
+            stepper[deviceNum]->setSpeed(stepSpeed); 
+            stepper[deviceNum]->setAcceleration(accel);
+            stepper[deviceNum]->setDeceleration(decel);
+          }
+        }
+      } 
+      else if (stepCommand == STEPPER_GET_POSITION)
+      {
+        int curPosition = stepper[deviceNum]->currentPosition();
+        Serial.write(START_SYSEX);
+        Serial.write(STEPPER_DATA);
+        Serial.write(STEPPER_GET_POSITION);
+        Serial.write(deviceNum);
+        Firmata.sendValueAsTwo7bitBytes(curPosition);
+        //this is a signed value we need the bit flag
+        Serial.write((curPosition >> 15) & 0x01);
+        Serial.write(END_SYSEX);
+      }
+      else if (stepCommand == STEPPER_GET_DISTANCE_TO)
+      {
+        int distTo = stepper[deviceNum]->distanceToGo();
+        Serial.write(START_SYSEX);
+        Serial.write(STEPPER_DATA);
+        Serial.write(STEPPER_GET_DISTANCE_TO);
+        Serial.write(deviceNum);
+        Firmata.sendValueAsTwo7bitBytes(distTo);
+        //this is a signed value we need the bit flag
+        Serial.write((distTo >> 15) & 0x01);
+        Serial.write(END_SYSEX);
+      }
+      else if (stepCommand == STEPPER_GET_SPEED)
+      {
+        int curSpeed = stepper[deviceNum]->speed();
+        Serial.write(START_SYSEX);
+        Serial.write(STEPPER_DATA);
+        Serial.write(STEPPER_GET_SPEED);
+        Serial.write(deviceNum);
+        Firmata.sendValueAsTwo7bitBytes(curSpeed);
+        Serial.write(END_SYSEX);
+      }
+      else if (stepCommand == STEPPER_SET_POSITION)
+      {
+        int newPos = (argv[2] + (argv[3] << 7));
+        newPos *= argv[4] ? 1 : -1;
+        stepper[deviceNum]->setCurrentPosition(newPos);
+
+      }
+      else if (stepCommand == STEPPER_SET_SPEED)
+      {
+        int newSpeed = (argv[2] + (argv[3] << 7));
+        stepper[deviceNum]->setSpeed(newSpeed);
+      }
+      else if (stepCommand == STEPPER_SET_MAX_SPEED)
+      {
+        int newMaxSpeed = (argv[2] + (argv[3] << 7));
+        stepper[deviceNum]->setMaxSpeed(newMaxSpeed);
+      }
+      else if (stepCommand == STEPPER_SET_ACCEL)
+      {
+        int newAccel = (argv[2] + (argv[3] << 7));
+        stepper[deviceNum]->setAcceleration(newAccel);
+      }
+      else if (stepCommand == STEPPER_SET_DECEL)
+      {
+        int newDecel = (argv[2] + (argv[3] << 7));
+        stepper[deviceNum]->setDeceleration(newDecel);
+      }
+    }
+    break;
+
+  case ENCODER_DATA:
+    byte encoderCommand, encoderNum, pinA, pinB, enableReports; 
+
+    encoderCommand= argv[0];
+
+    if (encoderCommand == ENCODER_ATTACH) 
+    {
+      encoderNum = argv[1];
+      pinA = argv[2];
+      pinB = argv[3];
+      if (IS_PIN_DIGITAL(pinA) && IS_PIN_DIGITAL(pinB))
+      {
+        attachEncoder(encoderNum, pinA, pinB);
+      }      
+    }
+
+    if (encoderCommand == ENCODER_REPORT_POSITION)
+    {
+      encoderNum = argv[1];
+      reportEncoderPosition(encoderNum);
+    }
+
+    if (encoderCommand == ENCODER_REPORT_POSITIONS)
+    {
+      reportEncoderPositions();
+    }
+
+    if (encoderCommand == ENCODER_RESET_POSITION)
+    {
+      encoderNum = argv[1];
+      resetEncoderPosition(encoderNum);
+    }
+    if (encoderCommand == ENCODER_REPORT_AUTO)
+    {
+      reportEncoders = argv[1];
+    }
+
+    if (encoderCommand == ENCODER_DETACH)
+    {
+      encoderNum = argv[1];
+      detachEncoder(encoderNum);
+    }
+    break;
+    if (command == ONEWIRE_DATA) {
+      if (argc>1) {
+        byte subcommand = argv[0];
+        byte pin = argv[1];
+        ow_device_info *info = &pinOneWire[pin];
+        OneWire *device = info->device;
+        if (device || subcommand == ONEWIRE_CONFIG_REQUEST) {
+          switch(subcommand) {
+          case ONEWIRE_SEARCH_REQUEST:
+          case ONEWIRE_SEARCH_ALARMS_REQUEST:
+            {
+              device->reset_search();
+              Serial.write(START_SYSEX);
+              Serial.write(ONEWIRE_DATA);
+              boolean isAlarmSearch = (subcommand == ONEWIRE_SEARCH_ALARMS_REQUEST);
+              Serial.write(isAlarmSearch ? (byte)ONEWIRE_SEARCH_ALARMS_REPLY : (byte)ONEWIRE_SEARCH_REPLY);
+              Serial.write(pin);
+              Encoder7Bit.startBinaryWrite();
+              byte addrArray[8];
+              while (isAlarmSearch ? device->search_alarms(addrArray) : device->search(addrArray)) {
+                for (int i=0;i<8;i++) {
+                  Encoder7Bit.writeBinary(addrArray[i]);
+                }
+              }
+              Encoder7Bit.endBinaryWrite();
+              Serial.write(END_SYSEX);
+              break;
+            }
+          case ONEWIRE_CONFIG_REQUEST:
+            {
+              if (argc==3 && pinConfig[pin]!=IGNORE) {
+                pinConfig[pin] = ONEWIRE;
+                oneWireConfig(pin, argv[2]); // this calls oneWireConfig again, this time setting the correct config (which doesn't cause harm though)
+              } 
+              break;
+            }
+          default:
+            {
+              if (subcommand & ONEWIRE_RESET_REQUEST_BIT) {
+                device->reset();
+                for (int i=0;i<8;i++) {
+                  info->addr[i]=0x0;
+                }
+              }
+              if (subcommand & ONEWIRE_SKIP_REQUEST_BIT) {
+                device->skip();
+                for (byte i=0;i<8;i++) {
+                  info->addr[i]=0x0;
+                }
+              }
+              if (subcommand & ONEWIRE_WITHDATA_REQUEST_BITS) {
+                int numBytes=num7BitOutbytes(argc-2);
+                int numReadBytes=0;
+                int correlationId;
+                argv+=2;
+                Encoder7Bit.readBinary(numBytes,argv,argv); //decode inplace
+
+                if (subcommand & ONEWIRE_SELECT_REQUEST_BIT) {
+                  if (numBytes<8) break;
+                  device->select(argv);
+                  for (int i=0;i<8;i++) {
+                    info->addr[i]=argv[i];
+                  }
+                  argv+=8;
+                  numBytes-=8;
+                }
+
+                if (subcommand & ONEWIRE_READ_REQUEST_BIT) {
+                  if (numBytes<4) break;
+                  numReadBytes = *((int*)argv);
+                  argv+=2;
+                  correlationId = *((int*)argv);
+                  argv+=2;
+                  numBytes-=4;
+                }
+
+                if (subcommand & ONEWIRE_WRITE_REQUEST_BIT) {
+                  for (int i=0;i<numBytes;i++) {
+                    info->device->write(argv[i],info->power);
+                  }
+                }
+
+                if (numReadBytes>0) {
+                  Serial.write(START_SYSEX);
+                  Serial.write(ONEWIRE_DATA);
+                  Serial.write(ONEWIRE_READ_REPLY);
+                  Serial.write(pin);
+                  Encoder7Bit.startBinaryWrite();
+                  Encoder7Bit.writeBinary(correlationId&0xFF);
+                  Encoder7Bit.writeBinary((correlationId>>8)&0xFF);
+                  for (int i=0;i<numReadBytes;i++) {
+                    Encoder7Bit.writeBinary(device->read());
+                  }
+                  Encoder7Bit.endBinaryWrite();
+                  Serial.write(END_SYSEX);
+                }
+              }
+            }
           }
         }
       }
     }
-
-    break;
-
   case SAMPLING_INTERVAL:
     if (argc > 1)
     {
@@ -706,6 +1009,15 @@ void sysexCallback(byte command, byte argc, byte *argv)
         Serial.write(STEPPER);
         Serial.write(21); //21 bits used for number of steps
       }
+      if (IS_PIN_DIGITAL(pin))
+      {//(IS_PIN_INTERRUPT(pin)) {
+        Serial.write(ENCODER);
+        Serial.write(28); //28 bits used for absolute position
+      }
+      if (IS_PIN_DIGITAL(pin)) {
+        Serial.write(ONEWIRE);
+        Serial.write(1);
+      }
       Serial.write(127);
     }
     Serial.write(END_SYSEX);
@@ -735,6 +1047,9 @@ void sysexCallback(byte command, byte argc, byte *argv)
       Serial.write(IS_PIN_ANALOG(pin) ? PIN_TO_ANALOG(pin) : 127);
     }
     Serial.write(END_SYSEX);
+    break;
+  default:
+    Firmata.sendString("Unknown sysex command");
     break;
   }
 }
@@ -768,6 +1083,71 @@ void disableI2CPins()
   // uncomment the following if or when the end() method is added to Wire library
   // Wire.end();
 }
+
+void resetEncoderPosition(byte encoderNum)
+{
+  if (isEncoderAttached(encoderNum))
+  {
+    encoders[encoderNum].write(0);
+  }
+}
+
+// Report specific encoder position using midi protocol
+void reportEncoderPosition(byte encoder)
+{
+  if (isEncoderAttached(encoder))
+  {
+    Serial.write(START_SYSEX);
+    Serial.write(ENCODER_DATA);
+    long absValue = abs(positions[encoder]);
+    byte direction = positions[encoder] >= 0 ? 0x00 : 0x01;
+    Serial.write((direction << 6) | (encoder));
+    Serial.write((byte)absValue & 0x7F);
+    Serial.write((byte)(absValue >> 7) & 0x7F);
+    Serial.write((byte)(absValue >> 14) & 0x7F);
+    Serial.write((byte)(absValue >> 21) & 0x7F);
+    Serial.write(END_SYSEX);
+  }
+}
+
+// Report all attached encoders positions (one message for all encoders) 
+void reportEncoderPositions()
+{
+  bool report = false;
+  for (uint8_t encoderNum=0; encoderNum < MAX_ENCODERS; encoderNum++)
+  {
+    if (isEncoderAttached(encoderNum))
+    {
+      if (positions[encoderNum] != prevPositions[encoderNum])
+      {
+        if (!report)
+        {
+          Firmata.write(START_SYSEX);
+          Firmata.write(ENCODER_DATA);
+          report = true;
+        }
+
+        prevPositions[encoderNum] = positions[encoderNum];
+        long absValue = abs(positions[encoderNum]);
+        byte direction = positions[encoderNum] >= 0 ? 0x00 : 0x01;
+        Serial.write((direction << 6) | (encoderNum));
+        Serial.write((byte)absValue & 0x7F);
+        Serial.write((byte)(absValue >> 7) & 0x7F);
+        Serial.write((byte)(absValue >> 14) & 0x7F);
+        Serial.write((byte)(absValue >> 21) & 0x7F);
+      }
+    }
+  }
+  if (report)
+  {
+    Firmata.write(END_SYSEX);
+  }
+}
+
+boolean isEncoderAttached(byte encoderNum){
+  return (encoderNum < MAX_ENCODERS && encoderNum < numAttachedEncoders/*&& encoders[encoderNum]*/);
+}
+
 
 /*==============================================================================
  * SETUP()
@@ -817,6 +1197,24 @@ void systemResetCallback()
   detachedServoCount = 0;
   servoCount = 0;
 
+  byte encoder;
+  for(encoder=0; encoder<MAX_ENCODERS; encoder++) 
+  {
+    detachEncoder(encoder);
+  }
+  reportEncoders = 0x00;
+
+
+  for (int i=0;i<TOTAL_PINS;i++) {
+    if (pinOneWire[i].device) {
+      free(pinOneWire[i].device);
+      pinOneWire[i].device=NULL;
+    }
+    for (int j=0;j<8;j++) {
+      pinOneWire[i].addr[j]=0;
+    }
+    pinOneWire[i].power=false;
+  }
   /* send digital inputs to set the initial state on the host computer,
    * since once in the loop(), this firmware will only send on change */
   /*
@@ -871,17 +1269,27 @@ void loop()
     {
       if (stepper[i])
       {
-        bool done = stepper[i]->update();
+        bool done = stepper[i]->run();
         // send command to client application when stepping is complete
-        if (done)
+        if (!done)
         {
           Serial.write(START_SYSEX);
           Serial.write(STEPPER_DATA);
-          Serial.write(i);
+          Serial.write(STEPPER_DONE);
+          Serial.write(i & 0x7F);
           Serial.write(END_SYSEX);
         }
       }
     }
+  }
+
+  //the delay in the reporting interval causes encoders to report incorrectly
+  //need to refresh them faster
+  for(byte i = 0; i < numAttachedEncoders; i++)
+  {
+    int32_t encPosition = encoders[i].read();
+    if (positions[i] != encPosition)
+      positions[i] = encPosition;
   }
 
   currentMillis = millis();
@@ -908,6 +1316,24 @@ void loop()
         readAndReportData(query[i].addr, query[i].reg, query[i].bytes);
       }
     }
+    if (reportEncoders)
+    {
+      reportEncoderPositions();
+    }
   }
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 

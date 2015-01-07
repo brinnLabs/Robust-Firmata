@@ -41,6 +41,10 @@ ofArduino::ofArduino(){
 	_digitalHistoryLength = 2;
 	_stringHistoryLength = 1;
 	_sysExHistoryLength = 1;
+	_numSteppers = 0;
+	_numEncoders = 0;
+	_stepperID = 0;
+	_encoderID = 0;
 
 	_majorProtocolVersion = 0;
 	_minorProtocolVersion = 0;
@@ -72,6 +76,7 @@ ofArduino::ofArduino(){
 		_servoValue[i] = -1;
 	}
 	bUseDelay = true;
+	//sendFirmwareVersionRequest();
 }
 
 ofArduino::~ofArduino() {
@@ -83,6 +88,7 @@ bool ofArduino::connect(string device, int baud){
 	_initialized = false;
 	_port.enumerateDevices();
 	connected = _port.setup(device.c_str(), baud);
+	sendFirmwareVersionRequest();
 	return connected;
 }
 
@@ -122,22 +128,22 @@ void ofArduino::disconnect(){
 }
 
 void ofArduino::update(){
-	int dataRead = 0;
-	// try to empty the _port buffer
-	while (dataRead < 512) {
+	
+	//the computer should be able to read the entire buffer faster than it can be filled
+	while (_port.available()) {
 
 		int byte = _port.readByte();
 
 		// process data....
-		if (byte != -1) {
+		if (byte != OF_SERIAL_ERROR || byte != OF_SERIAL_NO_DATA) {
 			processData((char)(byte));
-			dataRead++;
 		}
 		// _port buffer is empty
 		else{
 			break;
 		}
 	}
+	
 }
 
 int ofArduino::getAnalog(int pin){
@@ -332,6 +338,7 @@ bool ofArduino::isInitialized(){
 
 void ofArduino::processData(unsigned char inputData){
 
+
 	char msg[100];
 	sprintf(msg, "Received Byte: %i", inputData);
 	//Logger::get("Application").information(msg);
@@ -424,11 +431,16 @@ void ofArduino::processData(unsigned char inputData){
 void ofArduino::processSysExData(vector<unsigned char> data){
 
 	string str;
-
 	vector<unsigned char>::iterator it;
 	unsigned char buffer;
 	//int i = 1;
-	I2C_Data reply;
+	I2C_Data i2creply;
+	int stepperNumber;
+	vector<Encoder_Data> encoderReply;
+	Encoder_Data tempEncoderReply;
+	int encoderPos = 0;
+	unsigned char encBuffer[4];
+	Stepper_Data stepperData;
 	// act on reserved sysEx messages (extended commands) or trigger SysEx event...
 	switch (data.front()) { //first byte in buffer is command
 	case FIRMATA_SYSEX_REPORT_FIRMWARE:
@@ -442,8 +454,10 @@ void ofArduino::processSysExData(vector<unsigned char> data){
 		while (it != data.end()) {
 			buffer = *it;
 			it++;
-			buffer += *it << 7;
-			it++;
+			if (it != data.end()){
+				buffer += *it << 7;
+				it++;
+			}
 			str += buffer;
 		}
 		_firmwareName = str;
@@ -461,39 +475,111 @@ void ofArduino::processSysExData(vector<unsigned char> data){
 		while (it != data.end()) {
 			buffer = *it;
 			it++;
-			buffer += *it << 7;
-			it++;
+			if (it != data.end()) {
+				buffer += *it << 7;
+				it++;
+			}
 			str += buffer;
 		}
-
+		cout << "String Recieved: " << str << endl;
 		_stringHistory.push_front(str);
 		if ((int)_stringHistory.size() > _stringHistoryLength)
 			_stringHistory.pop_back();
 
+
 		ofNotifyEvent(EStringReceived, str, this);
 		break;
 	case I2C_REPLY:
-		it = data.begin();
-		it++; // skip the first byte, which is the string command
+		if (data.size() > 7 && (data.size() - 5) % 2 == 0){
+			it = data.begin();
+			it++; // skip the first byte, which is the string command
 
-		reply.address = (*it & 0x7F) | ((*++it & 0x7F) << 7);
-		reply.reg = (*++it & 0x7F) | ((*++it & 0x7F) << 7);
+			i2creply.address = (*it & 0x7F) | ((*++it & 0x7F) << 7);
+			i2creply.reg = (*++it & 0x7F) | ((*++it & 0x7F) << 7);
 
-		while (it != data.end()) {
-			buffer = *it;
-			it++;
-			buffer += *it << 7;
-			it++;
-			reply.data += buffer;
+			while (it != data.end()) {
+				buffer = *it;
+				it++;
+				if (it != data.end()) {
+					buffer += *it << 7;
+					it++;
+				}
+				i2creply.data += buffer;
+			}
+			ofNotifyEvent(EI2CDataRecieved, i2creply, this);
 		}
-		ofNotifyEvent(EI2CDataRecieved, reply, this);
+		else {
+			ofLogError("Arduino") << "Incorrect Number of Bytes recieved, possible buffer overflow";
+		}
 		break;
 	case STEPPER_DATA:
 		it = data.begin();
 		it++; // skip the first byte, which is the string command
+		//as is currently implemented will only ever be 1 byte long
+		switch (*it){
+		case STEPPER_GET_POSITION:
+			stepperData.type = STEPPER_GET_POSITION;
+			stepperData.data = getValueFromTwo7bitBytes(*++it, *++it);
+			stepperData.data *= *++it ? 1 : -1;
+			ofNotifyEvent(EStepperDataRecieved, stepperData, this);
+		case STEPPER_GET_DISTANCE_TO:
+			stepperData.type = STEPPER_GET_DISTANCE_TO;
+			stepperData.data = getValueFromTwo7bitBytes(*++it, *++it);
+			stepperData.data *= *++it ? 1 : -1;
+			ofNotifyEvent(EStepperDataRecieved, stepperData, this);
+		case STEPPER_GET_SPEED:
+			stepperData.type = STEPPER_GET_SPEED;
+			stepperData.data = getValueFromTwo7bitBytes(*++it, *++it);
+			ofNotifyEvent(EStepperDataRecieved, stepperData, this);
+		case STEPPER_DONE:
+			stepperData.type = STEPPER_DONE;
+			stepperData.data = (*it & 0x7F);
+			ofNotifyEvent(EStepperDataRecieved, stepperData, this);
+			break;
+		default:
+			ofLogNotice("Arduino") << "Unrecognized Command Data";
+		}
+		
 
-		int stepperNumber = (*it & 0x7F) | ((*++it & 0x7F) << 7);
-		ofNotifyEvent(EStepperIsDone, stepperNumber, this);
+		break;
+	case ENCODER_DATA:
+		if (data.size() % 5 == 1){
+			it = data.begin();
+			it++; // skip the first byte, which is the string command
+
+			while (it != data.end()) {
+				tempEncoderReply.ID = (*it & ENCODER_CHANNEL_MASK);
+				tempEncoderReply.direction = (*it & ENCODER_DIRECTION_MASK);
+
+				it++;
+
+				encBuffer[0] = *it++ & 0x7F;
+				encBuffer[1] = *it++ & 0x7F;
+				encBuffer[2] = *it++ & 0x7F;
+				encBuffer[3] = *it++ & 0x7F;
+
+				encoderPos = encBuffer[3];
+				encoderPos <<= 7;
+				encoderPos |= encBuffer[2];
+				encoderPos <<= 7;
+				encoderPos |= encBuffer[1];
+				encoderPos <<= 7;
+				encoderPos |= encBuffer[0];
+
+				/*Firmata.write((byte)absValue & 0x7F);
+				Firmata.write((byte)(absValue >> 7) & 0x7F);
+				Firmata.write((byte)(absValue >> 14) & 0x7F);
+				Firmata.write((byte)(absValue >> 21) & 0x7F);*/
+
+				tempEncoderReply.position = encoderPos;
+				encoderReply.push_back(tempEncoderReply);
+			}
+			ofNotifyEvent(EEncoderDataRecieved, encoderReply, this);
+		}
+		else {
+			ofLogError("Arduino") << "Incorrect Number of Bytes recieved, possible buffer overflow";
+		}
+
 		break;
 	default: // the message isn't in Firmatas extended command set
 		_sysExHistory.push_front(data);
@@ -566,6 +652,12 @@ void ofArduino::sendByte(unsigned char byte){
 	_port.writeByte(byte);
 }
 
+void ofArduino::flushAll(){
+	while (_port.readByte() != -1);
+	for (int i = 0; i < 5; i++)
+		sendByte(FIRMATA_END_SYSEX);
+}
+
 // in Firmata (and MIDI) data bytes are 7-bits. The 8th bit serves as a flag to mark a byte as either command or data.
 // therefore you need two data bytes to send 8-bits (a char).
 void ofArduino::sendValueAsTwo7bitBytes(int value)
@@ -615,98 +707,110 @@ int ofArduino::getServo(int pin){
 		return -1;
 }
 
-void  ofArduino::sendStepper2Wire(int stepperID, int dirPin, int stepPin, int stepsPerRev){
+void  ofArduino::sendStepper2Wire(int dirPin, int stepPin, int stepsPerRev){
 
-	//char numStepsPerRevLSB = stepsPerRev & 0x007F, numStepsPerRevMSB = (stepsPerRev >> 7) & 0x007F;
-
-	sendByte(FIRMATA_START_SYSEX);
-	sendByte(STEPPER_DATA);
-	sendByte(STEPPER_CONFIG);
-	sendByte(stepperID);
-	sendValueAsTwo7bitBytes(stepsPerRev);
-	/*sendByte(numStepsPerRevLSB);
-	sendByte(numStepsPerRevMSB);*/
-	sendByte(dirPin);
-	sendByte(stepPin);
-	sendByte(FIRMATA_END_SYSEX);
-	_digitalPinMode[dirPin] = ARD_OUTPUT;
-	_digitalPinMode[stepPin] = ARD_OUTPUT;
+	if (_stepperID < MAX_STEPPERS){
+		sendByte(FIRMATA_START_SYSEX);
+		sendByte(STEPPER_DATA);
+		sendByte(STEPPER_CONFIG);
+		sendByte(_stepperID);
+		sendByte(DRIVER);
+		sendValueAsTwo7bitBytes(stepsPerRev);
+		sendByte(dirPin);
+		sendByte(stepPin);
+		sendByte(FIRMATA_END_SYSEX);
+		_digitalPinMode[dirPin] = ARD_OUTPUT;
+		_digitalPinMode[stepPin] = ARD_OUTPUT;
+		_stepperID++;
+	}
+	else {
+		ofLogNotice("Arduino") << "Reached max number of steppers";
+	}
 }
 
-void  ofArduino::sendStepper4Wire(int stepperID, int pin1, int pin2, int pin3, int pin4, int stepsPerRev){
-	//char numStepsPerRevLSB = stepsPerRev & 0x007F, numStepsPerRevMSB = (stepsPerRev >> 7) & 0x007F;
+void  ofArduino::sendStepper4Wire(int pin1, int pin2, int pin3, int pin4, int stepsPerRev){
 
-	sendByte(FIRMATA_START_SYSEX);
-	sendByte(STEPPER_DATA);
-	sendByte(STEPPER_CONFIG);
-	sendByte(stepperID);
-	sendValueAsTwo7bitBytes(stepsPerRev);
-	/*sendByte(numStepsPerRevLSB);
-	sendByte(numStepsPerRevMSB);*/
-	sendByte(pin1);
-	sendByte(pin2);
-	sendByte(pin3);
-	sendByte(pin4);
-	sendByte(FIRMATA_END_SYSEX);
-	_digitalPinMode[pin1] = ARD_OUTPUT;
-	_digitalPinMode[pin2] = ARD_OUTPUT;
-	_digitalPinMode[pin3] = ARD_OUTPUT;
-	_digitalPinMode[pin4] = ARD_OUTPUT;
+	if (_stepperID < MAX_STEPPERS){
+		sendByte(FIRMATA_START_SYSEX);
+		sendByte(STEPPER_DATA);
+		sendByte(STEPPER_CONFIG);
+		sendByte(_stepperID);
+		sendByte(FOUR_WIRE);
+		sendValueAsTwo7bitBytes(stepsPerRev);
+		sendByte(pin1);
+		sendByte(pin2);
+		sendByte(pin3);
+		sendByte(pin4);
+		sendByte(FIRMATA_END_SYSEX);
+		_digitalPinMode[pin1] = ARD_OUTPUT;
+		_digitalPinMode[pin2] = ARD_OUTPUT;
+		_digitalPinMode[pin3] = ARD_OUTPUT;
+		_digitalPinMode[pin4] = ARD_OUTPUT;
+		_stepperID++;
+	}
+	else {
+		ofLogNotice("Arduino") << "Reached max number of steppers";
+	}
 
 }
 
 void  ofArduino::sendStepperStep(int stepperID, int direction, int numSteps, int speed, float acceleration, float deceleration) {
 
+	if (stepperID <= _stepperID && stepperID >= 0){
+		unsigned char steps[3] = { abs(numSteps) & 0x0000007F, (abs(numSteps) >> 7) & 0x0000007F, (abs(numSteps) >> 14) & 0x0000007F };
 
-	unsigned char steps[3] = { abs(numSteps) & 0x0000007F, (abs(numSteps) >> 7) & 0x0000007F, (abs(numSteps) >> 14) & 0x0000007F };
+		// the stepper interface expects decimal expressed an an integer
+		if (acceleration != 0 && deceleration != 0) {
+			int accel = floor(acceleration * 100);
+			int decel = floor(deceleration * 100);
 
-	/*unsigned char speedLSB = speed & 0x007F;
-	unsigned char speedMSB = (speed >> 7) & 0x007F;*/
+			sendByte(FIRMATA_START_SYSEX);
+			sendByte(STEPPER_DATA);
+			sendByte(STEPPER_MOVE);
+			sendByte(stepperID);
+			sendByte(direction);
+			sendByte(steps[0]);
+			sendByte(steps[1]);
+			sendByte(steps[2]);
+			sendValueAsTwo7bitBytes(speed);
+			sendValueAsTwo7bitBytes(accel);
+			sendValueAsTwo7bitBytes(decel);
+			sendByte(FIRMATA_END_SYSEX);
 
-	// the stepper interface expects decimal expressed an an integer
-	if (acceleration != 0 && deceleration != 0) {
-		int accel = floor(acceleration * 100);
-		int decel = floor(deceleration * 100);
-
-		/*unsigned char accelLSB = accel & 0x007F, accelMSB = (accel >> 7) & 0x007F;
-
-		unsigned char decelLSB = decel & 0x007F, decelMSB = (decel >> 7) & 0x007F;*/
-
-		sendByte(FIRMATA_START_SYSEX);
-		sendByte(STEPPER_DATA);
-		sendByte(STEPPER_STEP);
-		sendByte(stepperID);
-		sendByte(direction);
-		sendByte(steps[0]);
-		sendByte(steps[0]);
-		sendByte(steps[0]);
-		sendValueAsTwo7bitBytes(speed);
-		sendValueAsTwo7bitBytes(accel);
-		sendValueAsTwo7bitBytes(decel);
-		/*sendByte(speedLSB);
-		sendByte(speedMSB);
-		sendByte(accelLSB);
-		sendByte(accelMSB);
-		sendByte(decelLSB);
-		sendByte(decelMSB);*/
-		sendByte(FIRMATA_END_SYSEX);
-
+		}
+		else {
+			sendByte(FIRMATA_START_SYSEX);
+			sendByte(STEPPER_DATA);
+			sendByte(STEPPER_MOVE);
+			sendByte(stepperID);
+			sendByte(direction);
+			sendByte(steps[0]);
+			sendByte(steps[1]);
+			sendByte(steps[2]);
+			sendValueAsTwo7bitBytes(speed);
+			sendByte(FIRMATA_END_SYSEX);
+		}
 	}
-	else {
-		sendByte(FIRMATA_START_SYSEX);
-		sendByte(STEPPER_DATA);
-		sendByte(STEPPER_STEP);
-		sendByte(stepperID);
-		sendByte(direction);
-		sendByte(steps[0]);
-		sendByte(steps[0]);
-		sendByte(steps[0]);
-		sendValueAsTwo7bitBytes(speed);
-		/*sendByte(speedLSB);
-		sendByte(speedMSB);*/
-		sendByte(FIRMATA_END_SYSEX);
-	}
+
 }
+
+//void ofArduino::sendStepperLimitSwitch(int stepperID, int pin, bool sideOfStepper, bool usesInputPullup) {
+//
+//	if (stepperID <= _stepperID && stepperID >= 0){
+//		sendByte(FIRMATA_START_SYSEX);
+//		sendByte(STEPPER_DATA);
+//		sendByte(STEPPER_LIMIT_SWITCH);
+//		sendByte(stepperID);
+//		sendByte(sideOfStepper);
+//		sendByte(pin);
+//		sendByte(usesInputPullup);
+//		sendByte(FIRMATA_END_SYSEX);
+//
+//		_digitalPinMode[pin] = usesInputPullup ? ARD_INPUT_PULLUP : ARD_INPUT;
+//		sendDigitalPinReporting(pin, ARD_ON);
+//	}
+//}
+
 /**
 * Sends a I2C config request to the arduino board with an optional
 * value in microseconds to delay an I2C Read.  Must be called before
@@ -731,7 +835,7 @@ void  ofArduino::sendI2CConfig(int delay) {
 * @param {Array} bytes The bytes to send to the device
 */
 
-void  ofArduino::sendI2CWriteRequest(char slaveAddress, char * bytes) {
+void  ofArduino::sendI2CWriteRequest(char slaveAddress, unsigned char * bytes, int numOfBytes) {
 
 	if (_i2cConfigured){
 		sendByte(FIRMATA_START_SYSEX);
@@ -739,26 +843,7 @@ void  ofArduino::sendI2CWriteRequest(char slaveAddress, char * bytes) {
 		sendByte(slaveAddress);
 		sendByte(WRITE << 3);
 
-		for (int i = 0, length = strlen(bytes); i < length; i++) {
-			sendValueAsTwo7bitBytes(bytes[i]);
-		}
-
-		sendByte(FIRMATA_END_SYSEX);
-	}
-	else {
-		ofLogNotice("Arduino") << "I2C was not configured, did you send an I2C config request?";
-	}
-}
-
-void  ofArduino::sendI2CWriteRequest(char slaveAddress, char bytes[]) {
-
-	if (_i2cConfigured){
-		sendByte(FIRMATA_START_SYSEX);
-		sendByte(I2C_REQUEST);
-		sendByte(slaveAddress);
-		sendByte(WRITE << 3);
-
-		for (int i = 0, length = strlen(bytes); i < length; i++) {
+		for (int i = 0, length = numOfBytes; i < length; i++) {
 			sendValueAsTwo7bitBytes(bytes[i]);
 		}
 
@@ -800,7 +885,7 @@ void  ofArduino::sendI2CWriteRequest(char slaveAddress, vector<char> bytes) {
 * @param {array} inBytes       An array of bytes
 *
 */
-void  ofArduino::i2cWrite(char address, char * bytes) {
+void  ofArduino::i2cWrite(char address, unsigned char * bytes, int numOfBytes) {
 	/**
 	* registerOrData:
 	* [... arbitrary bytes]
@@ -817,7 +902,7 @@ void  ofArduino::i2cWrite(char address, char * bytes) {
 		sendByte(address);
 		sendByte(WRITE << 3);
 
-		for (int i = 0, length = strlen(bytes); i < length; i++) {
+		for (int i = 0, length = numOfBytes; i < length; i++) {
 			sendValueAsTwo7bitBytes(bytes[i]);
 		}
 
@@ -861,7 +946,7 @@ void  ofArduino::i2cWriteReg(char address, int reg, int byte) {
 * @param {function} callback A function to call when we have received the bytes.
 */
 
-void  ofArduino::sendI2CReadRequest(char address, char numBytes) {
+void  ofArduino::sendI2CReadRequest(char address, unsigned char numBytes) {
 
 	if (_i2cConfigured){
 		sendByte(FIRMATA_START_SYSEX);
@@ -885,10 +970,10 @@ void  ofArduino::sendI2CReadRequest(char address, char numBytes) {
 * @param {number} address    The address of the I2C device
 * @param {number} register   Optionally set the register to read from.
 * @param {number} numBytes   The number of bytes to receive.
-* @param {function} callback A function to call when we have received the bytes.
+*
 */
 
-void  ofArduino::i2cRead(char address, char reg, int bytesToRead) {
+void  ofArduino::i2cRead(char address, unsigned char reg, int bytesToRead) {
 
 	if (_i2cConfigured){
 		sendByte(FIRMATA_START_SYSEX);
@@ -915,12 +1000,11 @@ void  ofArduino::i2cRead(char address, char reg, int bytesToRead) {
 * @param {number} address    The address of the I2C device
 * @param {number} register   Optionally set the register to read from.
 * @param {number} numBytes   The number of bytes to receive.
-* @param {function} callback A function to call when we have received the bytes.
 *
 */
 
 
-void  ofArduino::i2cReadOnce(char address, char reg, int bytesToRead) {
+void  ofArduino::i2cReadOnce(char address, unsigned char reg, int bytesToRead) {
 
 	if (_i2cConfigured){
 		sendByte(FIRMATA_START_SYSEX);
@@ -949,9 +1033,14 @@ bool ofArduino::isI2CConfigured() {
 //* @param pin
 //* @param enableParasiticPower
 //*/
-//void  ofArduino::sendOneWireConfig(int pin, bool enableParasiticPower) {
-//	this.sp.write(new Buffer([START_SYSEX, ONEWIRE_DATA, ONEWIRE_CONFIG_REQUEST, pin, enableParasiticPower ? 0x01 : 0x00, END_SYSEX]));
-//};
+void  ofArduino::sendOneWireConfig(int pin, bool enableParasiticPower) {
+	sendByte(FIRMATA_START_SYSEX);
+	sendByte(ONEWIRE_DATA);
+	sendByte(ONEWIRE_CONFIG_REQUEST);
+	sendByte(pin);
+	sendByte(enableParasiticPower ? 0x01 : 0x00);
+	sendByte(FIRMATA_END_SYSEX);
+};
 
 ///**
 //* Searches for 1-wire devices on the bus.  The passed callback should accept
@@ -959,9 +1048,9 @@ bool ofArduino::isI2CConfigured() {
 //* @param pin
 //* @param callback
 //*/
-//void  ofArduino::sendOneWireSearch(int pin) {
-//	this._sendOneWireSearch(ONEWIRE_SEARCH_REQUEST, "1-wire-search-reply-" + pin, pin, callback);
-//};
+void  ofArduino::sendOneWireSearch(int pin) {
+	sendOneWireSearch(ONEWIRE_SEARCH_REQUEST, pin);
+};
 
 ///**
 //* Searches for 1-wire devices on the bus in an alarmed state.  The passed callback
@@ -969,22 +1058,19 @@ bool ofArduino::isI2CConfigured() {
 //* @param pin
 //* @param callback
 //*/
-//void  ofArduino::sendOneWireAlarmsSearch(int pin) {
-//	this._sendOneWireSearch(ONEWIRE_SEARCH_ALARMS_REQUEST, "1-wire-search-alarms-reply-" + pin, pin, callback);
-//};
+void  ofArduino::sendOneWireAlarmsSearch(int pin) {
+	sendOneWireSearch(ONEWIRE_SEARCH_ALARMS_REQUEST, pin);
+};
 
-//void  ofArduino::sendOneWireSearch(char type, event, pin, callback) {
-//	this.sp.write(new Buffer([START_SYSEX, ONEWIRE_DATA, type, pin, END_SYSEX]));
 
-//	var searchTimeout = setTimeout(function() {
-//		callback(new Error("1-Wire device search timeout - are you running ConfigurableFirmata?"));
-//	}, 5000);
-//	this.once(event, function(devices) {
-//		clearTimeout(searchTimeout);
-
-//		callback(null, devices);
-//	});
-//};
+//needs to notify event handler
+void  ofArduino::sendOneWireSearch(char type, int pin) {
+	sendByte(FIRMATA_START_SYSEX);
+	sendByte(ONEWIRE_DATA);
+	sendByte(type);
+	sendByte(pin);
+	sendByte(FIRMATA_END_SYSEX);
+}
 
 ///**
 //* Reads data from a device on the bus and invokes the passed callback.
@@ -995,25 +1081,18 @@ bool ofArduino::isI2CConfigured() {
 //* @param numBytesToRead
 //* @param callback
 //*/
-//void  ofArduino::sendOneWireRead(int pin, char device, char * numBytesToRead) {
-//	var correlationId = Math.floor(Math.random() * 255);
-//	var readTimeout = setTimeout(function() {
-//		callback(new Error("1-Wire device read timeout - are you running ConfigurableFirmata?"));
-//	}, 5000);
-//	this._sendOneWireRequest(pin, ONEWIRE_READ_REQUEST_BIT, device, numBytesToRead, correlationId, null, null, "1-wire-read-reply-" + correlationId, function(data) {
-//		clearTimeout(readTimeout);
-
-//		callback(null, data);
-//	});
-//};
+void  ofArduino::sendOneWireRead(int pin, unsigned char device, int numBytesToRead) {
+	int correlationId = floor(ofRandomuf() * 255);
+	sendOneWireRequest(pin, ONEWIRE_READ_REQUEST_BIT, device, numBytesToRead, correlationId, 0, 0);
+}
 
 ///**
 //* Resets all devices on the bus.
 //* @param pin
 //*/
-//void  ofArduino::sendOneWireReset(int pin) {
-//	this._sendOneWireRequest(pin, ONEWIRE_RESET_REQUEST_BIT);
-//};
+void  ofArduino::sendOneWireReset(int pin) {
+	sendOneWireRequest(pin, ONEWIRE_RESET_REQUEST_BIT, 0, 0, 0, 0, 0);
+};
 
 ///**
 //* Writes data to the bus to be received by the passed device.  The device
@@ -1024,18 +1103,18 @@ bool ofArduino::isI2CConfigured() {
 //* @param device
 //* @param data
 //*/
-//void  ofArduino::sendOneWireWrite(int pin, char device, char * data) {
-//	this._sendOneWireRequest(pin, ONEWIRE_WRITE_REQUEST_BIT, device, null, null, null, Array.isArray(data) ? data : [data]);
-//};
+void  ofArduino::sendOneWireWrite(int pin, unsigned char device, unsigned char * data) {
+	sendOneWireRequest(pin, ONEWIRE_WRITE_REQUEST_BIT, device, 0, 0, 0, data);
+};
 
 ///**
 //* Tells firmata to not do anything for the passed amount of ms.  For when you
 //* need to give a device attached to the bus time to do a calculation.
 //* @param pin
 //*/
-//void  ofArduino::sendOneWireDelay(int pin, int delay) {
-//	this._sendOneWireRequest(pin, ONEWIRE_DELA Y_REQUEST_BIT, null, null, null, delay);
-//};
+void  ofArduino::sendOneWireDelay(int pin, int delay) {
+	sendOneWireRequest(pin, ONEWIRE_DELAY_REQUEST_BIT, 0, 0, 0, delay, 0);
+};
 
 ///**
 //* Sends the passed data to the passed device on the bus, reads the specified
@@ -1048,60 +1127,128 @@ bool ofArduino::isI2CConfigured() {
 //* @param numBytesToRead
 //* @param callback
 //*/
-//void  ofArduino::sendOneWireWriteAndRead(int pin, char device, char * data, int numBytesToRead) {
-//	var correlationId = Math.floor(Math.random() * 255);
-//	var readTimeout = setTimeout(function() {
-//		callback(new Error("1-Wire device read timeout - are you running ConfigurableFirmata?"));
-//	}, 5000);
-//	this._sendOneWireRequest(pin, ONEWIRE_WRITE_REQUEST_BIT | ONEWIRE_READ_REQUEST_BIT, device, numBytesToRead, correlationId, null, Array.isArray(data) ? data : [data], "1-wire-read-reply-" + correlationId, function(data) {
-//		clearTimeout(readTimeout);
-
-//		callback(null, data);
-//	});
-//};
+void  ofArduino::sendOneWireWriteAndRead(int pin, unsigned char device, unsigned char * data, int numBytesToRead) {
+	int correlationId = floor(ofRandomuf() * 255);
+	sendOneWireRequest(pin, ONEWIRE_WRITE_REQUEST_BIT | ONEWIRE_READ_REQUEST_BIT, device, numBytesToRead, correlationId, 0, data);
+}
 
 //// see http://firmata.org/wiki/Proposals#OneWire_Proposal
-//void  ofArduino::sendOneWireRequest(int pin, char subcommand, char device, int numBytesToRead, char correlationId, int delay, char * dataToWrite) {
-//	var bytes = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
-
+void  ofArduino::sendOneWireRequest(int pin, unsigned char subcommand, unsigned char device, int numBytesToRead, unsigned char correlationId, int delay, unsigned char * dataToWrite) {
+}
+//	unsigned char bytes[] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+//
 //	if (device || numBytesToRead || correlationId || delay || dataToWrite) {
 //		subcommand = subcommand | ONEWIRE_WITHDATA_REQUEST_BITS;
 //	}
-
+//
 //	if (device) {
 //		bytes.splice.apply(bytes, [0, 8].concat(device));
 //	}
-
+//
 //	if (numBytesToRead) {
 //		bytes[8] = numBytesToRead & 0xFF;
 //		bytes[9] = (numBytesToRead >> 8) & 0xFF;
 //	}
-
+//
 //	if (correlationId) {
 //		bytes[10] = correlationId & 0xFF;
 //		bytes[11] = (correlationId >> 8) & 0xFF;
-//	}
-
+//	} 
+//
 //	if (delay) {
 //		bytes[12] = delay & 0xFF;
 //		bytes[13] = (delay >> 8) & 0xFF;
 //		bytes[14] = (delay >> 16) & 0xFF;
 //		bytes[15] = (delay >> 24) & 0xFF;
 //	}
-
+//
 //	if (dataToWrite) {
 //		dataToWrite.forEach(function(byte) {
 //			bytes.push(byte);
 //		});
 //	}
-
+//
 //	var output = [START_SYSEX, ONEWIRE_DATA, subcommand, pin];
 //	output = output.concat(Encoder7Bit.to7BitArray(bytes));
 //	output.push(END_SYSEX);
+//
+//	sendByte(FIRMATA_START_SYSEX);
+//	sendByte(ONEWIRE_DATA);
+//	sendByte(subcommand);
+//	sendByte(pin);
+//	sendByte(FIRMATA_END_SYSEX);
+//}
 
-//	this.sp.write(new Buffer(output));
+void ofArduino::attachEncoder(int pinA, int pinB){
+	if (_encoderID < MAX_ENCODERS){
+		sendByte(FIRMATA_START_SYSEX);
+		sendByte(ENCODER_DATA);
+		sendByte(ENCODER_ATTACH);
+		sendByte(_encoderID);
+		sendByte(pinA);
+		sendByte(pinB);
+		sendByte(FIRMATA_END_SYSEX);
+		_encoderID++;
+	}
 
-//	if (event && callback) {
-//		this.once(event, callback);
+}
+//void ofArduino::attachEncoder(int encoderID, int pinA, int pinB){
+//	if (encoderID < MAX_ENCODERS){
+//		sendByte(FIRMATA_START_SYSEX);
+//		sendByte(ENCODER_DATA);
+//		sendByte(ENCODER_ATTACH);
+//		sendByte(encoderID);
+//		sendByte(pinA);
+//		sendByte(pinB);
+//		sendByte(FIRMATA_END_SYSEX);
 //	}
-//};
+//
+//}
+void ofArduino::getEncoderPosition(int encoderID){
+	if (encoderID <= _encoderID && encoderID >= 0){
+		sendByte(FIRMATA_START_SYSEX);
+		sendByte(ENCODER_DATA);
+		sendByte(ENCODER_REPORT_POSITION);
+		sendByte(encoderID);
+		sendByte(FIRMATA_END_SYSEX);
+	}
+}
+void ofArduino::getAllEncoderPositions(){
+	sendByte(FIRMATA_START_SYSEX);
+	sendByte(ENCODER_DATA);
+	sendByte(ENCODER_REPORT_POSITIONS);
+	sendByte(FIRMATA_END_SYSEX);
+}
+void ofArduino::resetEncoderPosition(int encoderID){
+	if (encoderID <= _encoderID && encoderID >= 0){
+		sendByte(FIRMATA_START_SYSEX);
+		sendByte(ENCODER_DATA);
+		sendByte(ENCODER_RESET_POSITION);
+		sendByte(encoderID);
+		sendByte(FIRMATA_END_SYSEX);
+	}
+}
+void ofArduino::enableEncoderReporting(){
+	sendByte(FIRMATA_START_SYSEX);
+	sendByte(ENCODER_DATA);
+	sendByte(ENCODER_REPORT_AUTO);
+	sendByte(1);
+	sendByte(FIRMATA_END_SYSEX);
+}
+void ofArduino::disableEncoderReporting(){
+	sendByte(FIRMATA_START_SYSEX);
+	sendByte(ENCODER_DATA);
+	sendByte(ENCODER_REPORT_AUTO);
+	sendByte(0);
+	sendByte(FIRMATA_END_SYSEX);
+}
+void ofArduino::detachEncoder(int encoderID){
+	if (encoderID <= _encoderID && encoderID >= 0){
+		sendByte(FIRMATA_START_SYSEX);
+		sendByte(ENCODER_DATA);
+		sendByte(ENCODER_DETACH);
+		sendByte(encoderID);
+		sendByte(FIRMATA_END_SYSEX);
+		_encoderID--;
+	}
+}
