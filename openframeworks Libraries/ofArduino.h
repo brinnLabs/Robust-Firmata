@@ -142,13 +142,6 @@
 #define ARD_ON                                          1
 #define ARD_OFF                                         0
 
-<<<<<<< HEAD
-
-#define MAX_STEPPERS    								6     // arbitrary value... may need to adjust
-#define STEPPER_CONFIG  								0
-#define STEPPER_STEP    								1
-#define STEPPER_LIMIT_SWITCH							2
-=======
 #define MAX_STEPPERS    								6     // arbitrary value... may need to adjust
 #define STEPPER_DATA    								0x72  // move this to Firmata.h
 #define STEPPER_CONFIG  								0
@@ -159,7 +152,6 @@
 #define STEPPER_SET_SPEED								4
 #define STEPPER_SET_ACCEL								5
 #define STEPPER_SET_DECEL								6
->>>>>>> origin/experimental
 
 #define SYSEX_SERVO_ATTACH								0x00
 #define SYSEX_SERVO_DETACH								0x01
@@ -221,12 +213,6 @@ struct Stepper_Data{
 	int		id;
 	int		type;
 	int		data;
-};
-
-struct Encoder_Data{
-	int ID;
-	bool direction;
-	int position;
 };
 
 
@@ -386,17 +372,10 @@ public:
 	// triggered when the encoder returns data after a read request
 
 	// -- stepper
-<<<<<<< HEAD
-	void sendStepper2Wire(int dirPin, int stepPin, int stepsPerRev = 200);
-	// the pins has to have a stepper attached
-
-	void sendStepper4Wire(int pin1, int pin2, int pin3, int pin4, int stepsPerRev = 200);
-=======
 	void sendStepper2Wire(int dirPin, int stepPin, int stepsPerRev = 200, int limitSwitch1 = 0, int limitSwitch2 = 0, bool switch1UsesPullup = true, bool switch2UsesPullup = true);
 	// the pins has to have a stepper attached
 
 	void sendStepper4Wire(int pin1, int pin2, int pin3, int pin4, int stepsPerRev = 200, int limitSwitch1 = 0, int limitSwitch2 = 0, bool switch1UsesPullup = true, bool switch2UsesPullup = true);
->>>>>>> origin/experimental
 	// the pins has to have a stepper attached
 
 	void sendStepperMove(int stepperID, int direction, int steps, int speed=0, float acceleration = 0, float deceleration = 0);
@@ -416,10 +395,6 @@ public:
 
 	void setStepperDeceleration(int stepperID, unsigned int decel);
 	// set the deceleration in steps per second per second
-
-	void sendStepperLimitSwitch(int stepperID, int pin, bool sideOfStepper, bool usesInputPullup);
-	//send the pin, 
-
 
 
 	// -- servo

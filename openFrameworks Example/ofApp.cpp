@@ -52,13 +52,9 @@ void ofApp::setup(){
 	vector <ofSerialDeviceInfo> deviceList = serial.getDeviceList();
 	vector<string> temp = serial.getDeviceFriendlyNames();
 	for (int i = 0; i < temp.size(); i++){
-<<<<<<< HEAD
-		//teensy's friendly name is USB Serial max speed = 125000
-=======
 		//we can customize this so that we don't have change ports
 		//it makes the code far more portable 
 		//teensy's friendly name is USB Serial max speed = 125000 
->>>>>>> origin/experimental
 		if (strstr(temp[i].c_str(), "Arduino") != NULL || strstr(temp[i].c_str(), "Serial") != NULL){
 			cout << "Setting up firmata on " << deviceList[i].getDeviceName() << endl;
 			arduinoAttached = ard.connect(deviceList[i].getDevicePath(), 57600); 
@@ -106,11 +102,7 @@ void ofApp::setupArduino(const int & version) {
 
 	// set pins D2 and A5 to digital input
 	ard.sendDigitalPinMode(2, ARD_INPUT);
-<<<<<<< HEAD
-	ard.sendDigitalPinMode(19, ARD_INPUT_PULLUP);  // pin 21 if using StandardFirmata from Arduino 0022 or older
-=======
 	ard.sendDigitalPinMode(19, ARD_INPUT_PULLUP);  
->>>>>>> origin/experimental
 
 	// set pin A0 to analog input
 	ard.sendAnalogPinReporting(0, ARD_ANALOG);
@@ -118,11 +110,7 @@ void ofApp::setupArduino(const int & version) {
 	// set pin D13 as digital output
 	ard.sendDigitalPinMode(13, ARD_OUTPUT);
 	// set pin A4 as digital output
-<<<<<<< HEAD
-	ard.sendDigitalPinMode(18, ARD_OUTPUT);  // pin 20 if using StandardFirmata from Arduino 0022 or older
-=======
 	ard.sendDigitalPinMode(18, ARD_OUTPUT);  
->>>>>>> origin/experimental
 
 	// set pin D11 as PWM (analog output)
 	ard.sendDigitalPinMode(11, ARD_PWM);
@@ -130,29 +118,14 @@ void ofApp::setupArduino(const int & version) {
 	// attach a servo to pin D9
 	ard.sendServoAttach(9);
 
-<<<<<<< HEAD
-	// attach a stepper motor, we need to give it an id which starts at 0
-	// also need a step and a dir pin for driver boards or 2 wire steppers
-	// optional addition of the steps per revolution, usually 200 at 1.8 degrees per step
-	ard.sendStepper2Wire(8, 7, 200);
-=======
 	// attach a stepper motor, we need a step and a dir pin for driver boards or 2 wire steppers
 	// optional addition of the steps per revolution, usually 200 at 1.8 degrees per step
 	// also optional are limit switches, the pins and whether to use input pullup or not
 	ard.sendStepper2Wire(8, 7 , 3200, 3, 4);
->>>>>>> origin/experimental
 
 	//4 wire stepper also can be sent
 	//ard.sendStepper4Wire(0, 5, 6, 7, 8);
 
-<<<<<<< HEAD
-	//We probably need limit switches for our motors, though are totally optional
-	//send the id of the stepper, the pin of the switch
-	//the side of the stepper and whether to use input_pullup
-	ard.sendStepperLimitSwitch(0, 4, true, true);
-
-=======
->>>>>>> origin/experimental
 	ard.attachEncoder(5, 6);
 
 	ard.enableEncoderReporting();
@@ -161,11 +134,7 @@ void ofApp::setupArduino(const int & version) {
 	ofAddListener(ard.EDigitalPinChanged, this, &ofApp::digitalPinChanged);
 	ofAddListener(ard.EAnalogPinChanged, this, &ofApp::analogPinChanged);
 	ofAddListener(ard.EEncoderDataRecieved, this, &ofApp::encoderDataRecieved);
-<<<<<<< HEAD
-	ofAddListener(ard.EStepperIsDone, this, &ofApp::stepperFinished);
-=======
 	ofAddListener(ard.EStepperDataRecieved, this, &ofApp::stepperDataRecieved);
->>>>>>> origin/experimental
 }
 
 //--------------------------------------------------------------
@@ -210,10 +179,6 @@ void ofApp::encoderDataRecieved(const vector<Encoder_Data> & data){
 	}
 	
 }
-<<<<<<< HEAD
-void ofApp::stepperFinished(const int & stepperID){
-	cout << "recieved stepper data" << endl;
-=======
 void ofApp::stepperDataRecieved(const Stepper_Data & data){
 	switch (data.type){
 	case STEPPER_GET_POSITION:
@@ -229,7 +194,6 @@ void ofApp::stepperDataRecieved(const Stepper_Data & data){
 		break;
 	}
 	
->>>>>>> origin/experimental
 }
 
 
@@ -247,13 +211,8 @@ void ofApp::draw(){
 		font.drawString("arduino not ready...\n", 515, 40);
 	}
 	else {
-<<<<<<< HEAD
-		/*font.drawString(potValue + "\n" + buttonState +
-			"\nsending pwm: " + ofToString((int)(128 + 128 * sin(ofGetElapsedTimef()))), 515, 40);*/
-=======
 		font.drawString(potValue + "\n" + buttonState +
 			"\nsending pwm: " + ofToString((int)(128 + 128 * sin(ofGetElapsedTimef()))), 515, 40);
->>>>>>> origin/experimental
 
 		ofSetColor(64, 64, 64);
 		smallFont.drawString("If a servo is attached, use the left arrow key to rotate "
@@ -267,14 +226,6 @@ void ofApp::draw(){
 void ofApp::keyPressed(int key){
 	switch (key) {
 	case OF_KEY_UP:
-<<<<<<< HEAD
-		// turn the stepper 200 steps
-		ard.sendStepperStep(0, CCW, 1000, 10000, 20, 20);
-		break;
-	case OF_KEY_DOWN:
-		// turn it the opposite direction
-		ard.sendStepperStep(0, CW, 200, 255);
-=======
 		// turn the stepper one revolution
 		// can set speed and acceleration and deceleration
 		//ard.sendStepperMove(0, CCW, 3200, 10000, 20, 20);
@@ -283,7 +234,6 @@ void ofApp::keyPressed(int key){
 	case OF_KEY_DOWN:
 		// turn it the opposite direction
 		ard.sendStepperMove(0, CW, 3200);
->>>>>>> origin/experimental
 		break;
 	case OF_KEY_RIGHT:
 		// rotate servo head to 180 degrees
@@ -298,8 +248,6 @@ void ofApp::keyPressed(int key){
 	case ' ':
 		//ard.resetEncoderPosition(0);
 		ard.getAllEncoderPositions();
-<<<<<<< HEAD
-=======
 		break;
 	case '1':
 		//get the stepper position from the target position in steps
@@ -344,7 +292,6 @@ void ofApp::keyPressed(int key){
 		//in terms of every second the motor slows up by steps per second / steps per revolution
 		ard.setStepperDeceleration(0, 1000);
 		break;
->>>>>>> origin/experimental
 	default:
 		break;
 	}

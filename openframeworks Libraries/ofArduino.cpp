@@ -128,11 +128,7 @@ void ofArduino::disconnect(){
 }
 
 void ofArduino::update(){
-<<<<<<< HEAD
-	
-=======
 
->>>>>>> origin/experimental
 	//the computer should be able to read the entire buffer faster than it can be filled
 	while (_port.available()) {
 
@@ -147,11 +143,7 @@ void ofArduino::update(){
 			break;
 		}
 	}
-<<<<<<< HEAD
-	
-=======
 
->>>>>>> origin/experimental
 }
 
 int ofArduino::getAnalog(int pin){
@@ -448,11 +440,8 @@ void ofArduino::processSysExData(vector<unsigned char> data){
 	Encoder_Data tempEncoderReply;
 	int encoderPos = 0;
 	unsigned char encBuffer[4];
-<<<<<<< HEAD
-=======
 	unsigned char stepBuffer[4];
 	Stepper_Data stepperData;
->>>>>>> origin/experimental
 	// act on reserved sysEx messages (extended commands) or trigger SysEx event...
 	switch (data.front()) { //first byte in buffer is command
 	case FIRMATA_SYSEX_REPORT_FIRMWARE:
@@ -525,54 +514,6 @@ void ofArduino::processSysExData(vector<unsigned char> data){
 		}
 		break;
 	case STEPPER_DATA:
-<<<<<<< HEAD
-		it = data.begin();
-		it++; // skip the first byte, which is the string command
-		//as is currently implemented will only ever be 1 byte long
-		stepperNumber = (*it & 0x7F);
-
-		ofNotifyEvent(EStepperIsDone, stepperNumber, this);
-
-		break;
-	case ENCODER_DATA:
-		if (data.size() % 5 == 1){
-			it = data.begin();
-			it++; // skip the first byte, which is the string command
-
-			while (it != data.end()) {
-				tempEncoderReply.ID = (*it & ENCODER_CHANNEL_MASK);
-				tempEncoderReply.direction = (*it & ENCODER_DIRECTION_MASK);
-
-				it++;
-
-				encBuffer[0] = *it++ & 0x7F;
-				encBuffer[1] = *it++ & 0x7F;
-				encBuffer[2] = *it++ & 0x7F;
-				encBuffer[3] = *it++ & 0x7F;
-
-				encoderPos = encBuffer[3];
-				encoderPos <<= 7;
-				encoderPos |= encBuffer[2];
-				encoderPos <<= 7;
-				encoderPos |= encBuffer[1];
-				encoderPos <<= 7;
-				encoderPos |= encBuffer[0];
-
-				/*Firmata.write((byte)absValue & 0x7F);
-				Firmata.write((byte)(absValue >> 7) & 0x7F);
-				Firmata.write((byte)(absValue >> 14) & 0x7F);
-				Firmata.write((byte)(absValue >> 21) & 0x7F);*/
-
-				tempEncoderReply.position = encoderPos;
-				encoderReply.push_back(tempEncoderReply);
-			}
-			ofNotifyEvent(EEncoderDataRecieved, encoderReply, this);
-		}
-		else {
-			ofLogError("Arduino") << "Incorrect Number of Bytes recieved, possible buffer overflow";
-		}
-
-=======
 		if (data.size() <= 8 && data.size() >= 3){
 			it = data.begin();
 			it++; // skip the first byte, which is the string command
@@ -664,7 +605,6 @@ void ofArduino::processSysExData(vector<unsigned char> data){
 			ofLogError("Arduino") << "Incorrect Number of Bytes recieved, possible buffer overflow";
 		}
 
->>>>>>> origin/experimental
 		break;
 	default: // the message isn't in Firmatas extended command set
 		_sysExHistory.push_front(data);
@@ -792,11 +732,7 @@ int ofArduino::getServo(int pin){
 		return -1;
 }
 
-<<<<<<< HEAD
-void  ofArduino::sendStepper2Wire(int dirPin, int stepPin, int stepsPerRev){
-=======
 void  ofArduino::sendStepper2Wire(int dirPin, int stepPin, int stepsPerRev, int limitSwitch1, int limitSwitch2, bool switch1UsesPullup, bool switch2UsesPullup){
->>>>>>> origin/experimental
 
 	if (_stepperID < MAX_STEPPERS){
 		sendByte(FIRMATA_START_SYSEX);
@@ -807,9 +743,6 @@ void  ofArduino::sendStepper2Wire(int dirPin, int stepPin, int stepsPerRev, int 
 		sendValueAsTwo7bitBytes(stepsPerRev);
 		sendByte(dirPin);
 		sendByte(stepPin);
-<<<<<<< HEAD
-		sendByte(FIRMATA_END_SYSEX);
-=======
 		sendByte(0);
 		sendByte(0);
 		sendByte(limitSwitch1);
@@ -825,7 +758,6 @@ void  ofArduino::sendStepper2Wire(int dirPin, int stepPin, int stepsPerRev, int 
 			switch2UsesPullup ? _digitalPinMode[limitSwitch2] = ARD_INPUT_PULLUP : _digitalPinMode[limitSwitch2] = ARD_INPUT;
 
 
->>>>>>> origin/experimental
 		_digitalPinMode[dirPin] = ARD_OUTPUT;
 		_digitalPinMode[stepPin] = ARD_OUTPUT;
 		_stepperID++;
@@ -835,22 +767,6 @@ void  ofArduino::sendStepper2Wire(int dirPin, int stepPin, int stepsPerRev, int 
 	}
 }
 
-<<<<<<< HEAD
-void  ofArduino::sendStepper4Wire(int pin1, int pin2, int pin3, int pin4, int stepsPerRev){
-
-	if (_stepperID < MAX_STEPPERS){
-		sendByte(FIRMATA_START_SYSEX);
-		sendByte(STEPPER_DATA);
-		sendByte(STEPPER_CONFIG);
-		sendByte(_stepperID);
-		sendByte(FOUR_WIRE);
-		sendValueAsTwo7bitBytes(stepsPerRev);
-		sendByte(pin1);
-		sendByte(pin2);
-		sendByte(pin3);
-		sendByte(pin4);
-		sendByte(FIRMATA_END_SYSEX);
-=======
 void  ofArduino::sendStepper4Wire(int pin1, int pin2, int pin3, int pin4, int stepsPerRev, int limitSwitch1, int limitSwitch2, bool switch1UsesPullup, bool switch2UsesPullup){
 
 	if (_stepperID < MAX_STEPPERS){
@@ -877,7 +793,6 @@ void  ofArduino::sendStepper4Wire(int pin1, int pin2, int pin3, int pin4, int st
 			switch2UsesPullup ? _digitalPinMode[limitSwitch2] = ARD_INPUT_PULLUP : _digitalPinMode[limitSwitch2] = ARD_INPUT;
 
 
->>>>>>> origin/experimental
 		_digitalPinMode[pin1] = ARD_OUTPUT;
 		_digitalPinMode[pin2] = ARD_OUTPUT;
 		_digitalPinMode[pin3] = ARD_OUTPUT;
@@ -895,37 +810,10 @@ void ofArduino::sendStepperMove(int stepperID, int direction, int numSteps, int 
 	if (stepperID <= _stepperID && stepperID >= 0){
 		unsigned char steps[3] = { abs(numSteps) & 0x0000007F, (abs(numSteps) >> 7) & 0x0000007F, (abs(numSteps) >> 14) & 0x0000007F };
 
-<<<<<<< HEAD
-	if (stepperID <= _stepperID && stepperID >= 0){
-		unsigned char steps[3] = { abs(numSteps) & 0x0000007F, (abs(numSteps) >> 7) & 0x0000007F, (abs(numSteps) >> 14) & 0x0000007F };
-
-=======
->>>>>>> origin/experimental
 		// the stepper interface expects decimal expressed an an integer
 		if (acceleration != 0 && deceleration != 0) {
 			int accel = floor(acceleration * 100);
 			int decel = floor(deceleration * 100);
-<<<<<<< HEAD
-
-			sendByte(FIRMATA_START_SYSEX);
-			sendByte(STEPPER_DATA);
-			sendByte(STEPPER_STEP);
-			sendByte(stepperID);
-			sendByte(direction);
-			sendByte(steps[0]);
-			sendByte(steps[1]);
-			sendByte(steps[2]);
-			sendValueAsTwo7bitBytes(speed);
-			sendValueAsTwo7bitBytes(accel);
-			sendValueAsTwo7bitBytes(decel);
-			sendByte(FIRMATA_END_SYSEX);
-
-		}
-		else {
-			sendByte(FIRMATA_START_SYSEX);
-			sendByte(STEPPER_DATA);
-			sendByte(STEPPER_STEP);
-=======
 
 			sendByte(FIRMATA_START_SYSEX);
 			sendByte(STEPPER_DATA);
@@ -945,7 +833,6 @@ void ofArduino::sendStepperMove(int stepperID, int direction, int numSteps, int 
 			sendByte(FIRMATA_START_SYSEX);
 			sendByte(STEPPER_DATA);
 			sendByte(STEPPER_MOVE);
->>>>>>> origin/experimental
 			sendByte(stepperID);
 			sendByte(direction);
 			sendByte(steps[0]);
@@ -954,22 +841,6 @@ void ofArduino::sendStepperMove(int stepperID, int direction, int numSteps, int 
 			sendValueAsTwo7bitBytes(speed);
 			sendByte(FIRMATA_END_SYSEX);
 		}
-<<<<<<< HEAD
-	}
-
-}
-
-void ofArduino::sendStepperLimitSwitch(int stepperID, int pin, bool sideOfStepper, bool usesInputPullup) {
-
-	if (stepperID <= _stepperID && stepperID >= 0){
-		sendByte(FIRMATA_START_SYSEX);
-		sendByte(STEPPER_DATA);
-		sendByte(STEPPER_LIMIT_SWITCH);
-		sendByte(stepperID);
-		sendByte(sideOfStepper);
-		sendByte(pin);
-		sendByte(usesInputPullup);
-=======
 		else{
 			sendByte(FIRMATA_START_SYSEX);
 			sendByte(STEPPER_DATA);
@@ -1012,18 +883,10 @@ void ofArduino::setStepperSpeed(int stepperID, unsigned int speed){
 		sendByte(STEPPER_SET_SPEED);
 		sendByte(stepperID);
 		sendValueAsTwo7bitBytes(speed);
->>>>>>> origin/experimental
 		sendByte(FIRMATA_END_SYSEX);
 	}
 }
 
-<<<<<<< HEAD
-		_digitalPinMode[pin] = usesInputPullup ? ARD_INPUT_PULLUP : ARD_INPUT;
-		sendDigitalPinReporting(pin, ARD_ON);
-	}
-}
-
-=======
 void ofArduino::setStepperAcceleration(int stepperID, unsigned int accel){
 	if (_stepperID < MAX_STEPPERS){
 		sendByte(FIRMATA_START_SYSEX);
@@ -1063,7 +926,6 @@ void ofArduino::setStepperDeceleration(int stepperID, unsigned int decel){
 //	}
 //}
 
->>>>>>> origin/experimental
 /**
 * Sends a I2C config request to the arduino board with an optional
 * value in microseconds to delay an I2C Read.  Must be called before
@@ -1387,66 +1249,6 @@ void  ofArduino::sendOneWireWriteAndRead(int pin, unsigned char device, unsigned
 
 //// see http://firmata.org/wiki/Proposals#OneWire_Proposal
 void  ofArduino::sendOneWireRequest(int pin, unsigned char subcommand, unsigned char device, int numBytesToRead, unsigned char correlationId, int delay, unsigned char * dataToWrite) {
-<<<<<<< HEAD
-}
-//	unsigned char bytes[] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
-//
-//	if (device || numBytesToRead || correlationId || delay || dataToWrite) {
-//		subcommand = subcommand | ONEWIRE_WITHDATA_REQUEST_BITS;
-//	}
-//
-//	if (device) {
-//		bytes.splice.apply(bytes, [0, 8].concat(device));
-//	}
-//
-//	if (numBytesToRead) {
-//		bytes[8] = numBytesToRead & 0xFF;
-//		bytes[9] = (numBytesToRead >> 8) & 0xFF;
-//	}
-//
-//	if (correlationId) {
-//		bytes[10] = correlationId & 0xFF;
-//		bytes[11] = (correlationId >> 8) & 0xFF;
-//	} 
-//
-//	if (delay) {
-//		bytes[12] = delay & 0xFF;
-//		bytes[13] = (delay >> 8) & 0xFF;
-//		bytes[14] = (delay >> 16) & 0xFF;
-//		bytes[15] = (delay >> 24) & 0xFF;
-//	}
-//
-//	if (dataToWrite) {
-//		dataToWrite.forEach(function(byte) {
-//			bytes.push(byte);
-//		});
-//	}
-//
-//	var output = [START_SYSEX, ONEWIRE_DATA, subcommand, pin];
-//	output = output.concat(Encoder7Bit.to7BitArray(bytes));
-//	output.push(END_SYSEX);
-//
-//	sendByte(FIRMATA_START_SYSEX);
-//	sendByte(ONEWIRE_DATA);
-//	sendByte(subcommand);
-//	sendByte(pin);
-//	sendByte(FIRMATA_END_SYSEX);
-//}
-
-void ofArduino::attachEncoder(int pinA, int pinB){
-	if (_encoderID < MAX_ENCODERS){
-		sendByte(FIRMATA_START_SYSEX);
-		sendByte(ENCODER_DATA);
-		sendByte(ENCODER_ATTACH);
-		sendByte(_encoderID);
-		sendByte(pinA);
-		sendByte(pinB);
-		sendByte(FIRMATA_END_SYSEX);
-		_encoderID++;
-	}
-
-}
-=======
 
 	unsigned char bytes[] = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
 
@@ -1517,7 +1319,6 @@ void ofArduino::attachEncoder(int pinA, int pinB){
 //	}
 //
 //}
->>>>>>> origin/experimental
 void ofArduino::getEncoderPosition(int encoderID){
 	if (encoderID <= _encoderID && encoderID >= 0){
 		sendByte(FIRMATA_START_SYSEX);

@@ -76,11 +76,7 @@ struct ow_device_info
 
 ow_device_info pinOneWire[TOTAL_PINS];
 
-<<<<<<< HEAD:RobustFirmata/RobustFirmata.ino
-FirmataStepper *stepper[MAX_STEPPERS];
-=======
 Stepper *stepper[MAX_STEPPERS];
->>>>>>> origin/experimental:RobustFirmata/RobustFirmata.ino
 byte numSteppers = 0;
 
 Encoder encoders[MAX_ENCODERS];
@@ -150,19 +146,11 @@ void detachServo(byte pin)
 }
 
 /**
-<<<<<<< HEAD:RobustFirmata/RobustFirmata.ino
-TO-DO
-==============
-Track encoders attaching and detatching, perhaps use a similar method to servos
-
-**/
-=======
  * TO-DO
  * ==============
  * Track encoders attaching and detatching, perhaps use a similar method to servos
  * 
  **/
->>>>>>> origin/experimental:RobustFirmata/RobustFirmata.ino
 
 void attachEncoder(byte encoderNum, byte pinANum, byte pinBNum)
 {
@@ -184,19 +172,11 @@ void attachEncoder(byte encoderNum, byte pinANum, byte pinBNum)
 }
 
 /**
-<<<<<<< HEAD:RobustFirmata/RobustFirmata.ino
-TO-DO
-==============
-How should we detach them? now it just gives it an empty object, need a way to make it null
-
-**/
-=======
  * TO-DO
  * ==============
  * How should we detach them? now it just gives it an empty object, need a way to make it null
  * 
  **/
->>>>>>> origin/experimental:RobustFirmata/RobustFirmata.ino
 
 void detachEncoder(byte encoderNum)
 {
@@ -682,21 +662,13 @@ void sysexCallback(byte command, byte argc, byte *argv)
   case STEPPER_DATA:
     byte stepCommand, deviceNum, directionPin, stepPin, stepDirection;
     byte interface, interfaceType;
-<<<<<<< HEAD:RobustFirmata/RobustFirmata.ino
-    byte motorPin3, motorPin4, limitPin;
-=======
     byte motorPin3, motorPin4, limitSwitch1, limitSwitch2;
->>>>>>> origin/experimental:RobustFirmata/RobustFirmata.ino
     unsigned int stepsPerRev;
     long numSteps;
     int stepSpeed;
     int accel;
     int decel;
-<<<<<<< HEAD:RobustFirmata/RobustFirmata.ino
-    boolean side, usePullup;
-=======
     boolean l1usePullup, l2usePullup;
->>>>>>> origin/experimental:RobustFirmata/RobustFirmata.ino
 
     stepCommand = argv[0];
     deviceNum = argv[1];
@@ -762,11 +734,7 @@ void sysexCallback(byte command, byte argc, byte *argv)
       {
         stepDirection = argv[2];
         numSteps = (long)argv[3] | ((long)argv[4] << 7) | ((long)argv[5] << 14);
-<<<<<<< HEAD:RobustFirmata/RobustFirmata.ino
-        stepSpeed = (argv[6] + (argv[7] << 7));
-=======
 
->>>>>>> origin/experimental:RobustFirmata/RobustFirmata.ino
         if (stepDirection == 0)
         {
           numSteps *= -1;
@@ -793,26 +761,6 @@ void sysexCallback(byte command, byte argc, byte *argv)
           }
         }
       } 
-<<<<<<< HEAD:RobustFirmata/RobustFirmata.ino
-      else if (stepCommand == STEPPER_LIMIT_SWITCH)
-      {
-        limitPin = argv[2];
-        side = argv[3];
-        usePullup = argv[4];
-        if (stepper[deviceNum])
-        {
-          stepper[deviceNum]->setLimitSwitch(side, limitPin, usePullup);
-          if(usePullup){
-            setPinModeCallback(limitPin, FIRMATA_INPUT_PULLUP);
-          }
-          else
-          {
-            setPinModeCallback(limitPin, INPUT);
-          }
-        }
-
-      }
-=======
       else if (stepCommand == STEPPER_GET_POSITION)
       {
         long curPosition = stepper[deviceNum]->getPosition();
@@ -862,7 +810,6 @@ void sysexCallback(byte command, byte argc, byte *argv)
         int newDecel = (argv[2] + (argv[3] << 7));
         stepper[deviceNum]->setDeceleration(newDecel);
       }
->>>>>>> origin/experimental:RobustFirmata/RobustFirmata.ino
     }
     break;
 
@@ -1180,13 +1127,6 @@ void reportEncoderPositions()
   {
     if (isEncoderAttached(encoderNum))
     {
-<<<<<<< HEAD:RobustFirmata/RobustFirmata.ino
-      //int32_t encPosition = encoders[encoderNum].read();
-      /*char str[64];
-       sprintf(str, "%d", encPosition);
-       Firmata.sendString(str);*/
-=======
->>>>>>> origin/experimental:RobustFirmata/RobustFirmata.ino
       if (positions[encoderNum] != prevPositions[encoderNum])
       {
         if (!report)
@@ -1344,21 +1284,14 @@ void loop()
         {
           Serial.write(START_SYSEX);
           Serial.write(STEPPER_DATA);
-<<<<<<< HEAD:RobustFirmata/RobustFirmata.ino
-=======
           Serial.write(STEPPER_DONE);
->>>>>>> origin/experimental:RobustFirmata/RobustFirmata.ino
           Serial.write(i & 0x7F);
           Serial.write(END_SYSEX);
         }
       }
     }
   }
-<<<<<<< HEAD:RobustFirmata/RobustFirmata.ino
-  
-=======
 
->>>>>>> origin/experimental:RobustFirmata/RobustFirmata.ino
   //the delay in the reporting interval causes encoders to report incorrectly
   //need to refresh them faster
   for(byte i = 0; i < numAttachedEncoders; i++)
@@ -1367,11 +1300,7 @@ void loop()
     if (positions[i] != encPosition)
       positions[i] = encPosition;
   }
-<<<<<<< HEAD:RobustFirmata/RobustFirmata.ino
-  
-=======
 
->>>>>>> origin/experimental:RobustFirmata/RobustFirmata.ino
   currentMillis = millis();
   if (currentMillis - previousMillis > samplingInterval)
   {
@@ -1414,7 +1343,4 @@ void loop()
 
 
 
-<<<<<<< HEAD:RobustFirmata/RobustFirmata.ino
-=======
 
->>>>>>> origin/experimental:RobustFirmata/RobustFirmata.ino

@@ -38,11 +38,7 @@ private:
     void digitalPinChanged(const int & pinNum);
     void analogPinChanged(const int & pinNum);
 	void encoderDataRecieved(const vector<Encoder_Data> & data);
-<<<<<<< HEAD
-	void stepperFinished(const int & stepperID);
-=======
 	void stepperDataRecieved(const Stepper_Data & data);
->>>>>>> origin/experimental
 	void updateArduino();
     
     string buttonState;
