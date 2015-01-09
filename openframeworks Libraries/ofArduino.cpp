@@ -514,7 +514,6 @@ void ofArduino::processSysExData(vector<unsigned char> data){
 		}
 		break;
 	case STEPPER_DATA:
-		cout << data.size() << endl;
 		if (data.size() <= 8 && data.size() >= 3){
 			it = data.begin();
 			it++; // skip the first byte, which is the string command
@@ -523,10 +522,10 @@ void ofArduino::processSysExData(vector<unsigned char> data){
 			case STEPPER_GET_POSITION:
 				stepperData.type = STEPPER_GET_POSITION;
 				stepperData.id = *++it;
-				stepBuffer[0] = *it++ & 0x7F;
-				stepBuffer[1] = *it++ & 0x7F;
-				stepBuffer[2] = *it++ & 0x7F;
-				stepBuffer[3] = *it++ & 0x7F;
+				stepBuffer[0] = *++it & 0x7F;
+				stepBuffer[1] = *++it & 0x7F;
+				stepBuffer[2] = *++it & 0x7F;
+				stepBuffer[3] = *++it & 0x7F;
 
 				stepperData.data = stepBuffer[3];
 				stepperData.data <<= 7;
@@ -542,10 +541,10 @@ void ofArduino::processSysExData(vector<unsigned char> data){
 			case STEPPER_GET_DISTANCE_TO:
 				stepperData.type = STEPPER_GET_DISTANCE_TO;
 				stepperData.id = *++it;
-				stepBuffer[0] = *it++ & 0x7F;
-				stepBuffer[1] = *it++ & 0x7F;
-				stepBuffer[2] = *it++ & 0x7F;
-				stepBuffer[3] = *it++ & 0x7F;
+				stepBuffer[0] = *++it & 0x7F;
+				stepBuffer[1] = *++it & 0x7F;
+				stepBuffer[2] = *++it & 0x7F;
+				stepBuffer[3] = *++it & 0x7F;
 
 				stepperData.data = stepBuffer[3];
 				stepperData.data <<= 7;
@@ -561,6 +560,7 @@ void ofArduino::processSysExData(vector<unsigned char> data){
 			case STEPPER_DONE:
 				stepperData.type = STEPPER_DONE;
 				stepperData.id = (*++it & 0x7F);
+				stepperData.data = 0;
 				ofNotifyEvent(EStepperDataRecieved, stepperData, this);
 				break;
 			default:
@@ -595,11 +595,6 @@ void ofArduino::processSysExData(vector<unsigned char> data){
 				encoderPos |= encBuffer[1];
 				encoderPos <<= 7;
 				encoderPos |= encBuffer[0];
-
-				/*Firmata.write((byte)absValue & 0x7F);
-				Firmata.write((byte)(absValue >> 7) & 0x7F);
-				Firmata.write((byte)(absValue >> 14) & 0x7F);
-				Firmata.write((byte)(absValue >> 21) & 0x7F);*/
 
 				tempEncoderReply.position = encoderPos;
 				encoderReply.push_back(tempEncoderReply);
@@ -748,18 +743,20 @@ void  ofArduino::sendStepper2Wire(int dirPin, int stepPin, int stepsPerRev, int 
 		sendValueAsTwo7bitBytes(stepsPerRev);
 		sendByte(dirPin);
 		sendByte(stepPin);
+		sendByte(0);
+		sendByte(0);
 		sendByte(limitSwitch1);
 		sendByte(limitSwitch2);
 		sendByte(switch1UsesPullup);
 		sendByte(switch2UsesPullup);
 		sendByte(FIRMATA_END_SYSEX);
 
-		if (limitSwitch1 != 0)
+		if (limitSwitch1 > 0)
 			switch1UsesPullup ? _digitalPinMode[limitSwitch1] = ARD_INPUT_PULLUP : _digitalPinMode[limitSwitch1] = ARD_INPUT;
-		
-		if (limitSwitch2 != 0)
+
+		if (limitSwitch2 > 0)
 			switch2UsesPullup ? _digitalPinMode[limitSwitch2] = ARD_INPUT_PULLUP : _digitalPinMode[limitSwitch2] = ARD_INPUT;
-		
+
 
 		_digitalPinMode[dirPin] = ARD_OUTPUT;
 		_digitalPinMode[stepPin] = ARD_OUTPUT;
@@ -789,12 +786,12 @@ void  ofArduino::sendStepper4Wire(int pin1, int pin2, int pin3, int pin4, int st
 		sendByte(switch2UsesPullup);
 		sendByte(FIRMATA_END_SYSEX);
 
-		if (limitSwitch1 != 0)
+		if (limitSwitch1 > 0)
 			switch1UsesPullup ? _digitalPinMode[limitSwitch1] = ARD_INPUT_PULLUP : _digitalPinMode[limitSwitch1] = ARD_INPUT;
-		
-		if (limitSwitch2 != 0)
+
+		if (limitSwitch2 > 0)
 			switch2UsesPullup ? _digitalPinMode[limitSwitch2] = ARD_INPUT_PULLUP : _digitalPinMode[limitSwitch2] = ARD_INPUT;
-		
+
 
 		_digitalPinMode[pin1] = ARD_OUTPUT;
 		_digitalPinMode[pin2] = ARD_OUTPUT;
@@ -1252,50 +1249,50 @@ void  ofArduino::sendOneWireWriteAndRead(int pin, unsigned char device, unsigned
 
 //// see http://firmata.org/wiki/Proposals#OneWire_Proposal
 void  ofArduino::sendOneWireRequest(int pin, unsigned char subcommand, unsigned char device, int numBytesToRead, unsigned char correlationId, int delay, unsigned char * dataToWrite) {
+
+	unsigned char bytes[] = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+
+	if (device || numBytesToRead || correlationId || delay || dataToWrite) {
+		subcommand = subcommand | ONEWIRE_WITHDATA_REQUEST_BITS;
+	}
+	//
+	//	if (device) {
+	//		bytes.splice.apply(bytes, [0, 8].concat(device));
+	//	}
+	//
+	if (numBytesToRead) {
+		bytes[8] = numBytesToRead & 0xFF;
+		bytes[9] = (numBytesToRead >> 8) & 0xFF;
+	}
+
+	if (correlationId) {
+		bytes[10] = correlationId & 0xFF;
+		bytes[11] = (correlationId >> 8) & 0xFF;
+	}
+
+	if (delay) {
+		bytes[12] = delay & 0xFF;
+		bytes[13] = (delay >> 8) & 0xFF;
+		bytes[14] = (delay >> 16) & 0xFF;
+		bytes[15] = (delay >> 24) & 0xFF;
+	}
+
+	//if (dataToWrite) {
+	//	dataToWrite.forEach(function(byte) {
+	//		bytes.push(byte);
+	//	});
+	//}
+	//
+	//	var output = [START_SYSEX, ONEWIRE_DATA, subcommand, pin];
+	//	output = output.concat(Encoder7Bit.to7BitArray(bytes));
+	//	output.push(END_SYSEX);
+	//
+	sendByte(FIRMATA_START_SYSEX);
+	sendByte(ONEWIRE_DATA);
+	sendByte(subcommand);
+	sendByte(pin);
+	sendByte(FIRMATA_END_SYSEX);
 }
-//	unsigned char bytes[] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
-//
-//	if (device || numBytesToRead || correlationId || delay || dataToWrite) {
-//		subcommand = subcommand | ONEWIRE_WITHDATA_REQUEST_BITS;
-//	}
-//
-//	if (device) {
-//		bytes.splice.apply(bytes, [0, 8].concat(device));
-//	}
-//
-//	if (numBytesToRead) {
-//		bytes[8] = numBytesToRead & 0xFF;
-//		bytes[9] = (numBytesToRead >> 8) & 0xFF;
-//	}
-//
-//	if (correlationId) {
-//		bytes[10] = correlationId & 0xFF;
-//		bytes[11] = (correlationId >> 8) & 0xFF;
-//	} 
-//
-//	if (delay) {
-//		bytes[12] = delay & 0xFF;
-//		bytes[13] = (delay >> 8) & 0xFF;
-//		bytes[14] = (delay >> 16) & 0xFF;
-//		bytes[15] = (delay >> 24) & 0xFF;
-//	}
-//
-//	if (dataToWrite) {
-//		dataToWrite.forEach(function(byte) {
-//			bytes.push(byte);
-//		});
-//	}
-//
-//	var output = [START_SYSEX, ONEWIRE_DATA, subcommand, pin];
-//	output = output.concat(Encoder7Bit.to7BitArray(bytes));
-//	output.push(END_SYSEX);
-//
-//	sendByte(FIRMATA_START_SYSEX);
-//	sendByte(ONEWIRE_DATA);
-//	sendByte(subcommand);
-//	sendByte(pin);
-//	sendByte(FIRMATA_END_SYSEX);
-//}
 
 void ofArduino::attachEncoder(int pinA, int pinB){
 	if (_encoderID < MAX_ENCODERS){

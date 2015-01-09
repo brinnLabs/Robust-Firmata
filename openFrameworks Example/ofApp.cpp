@@ -52,7 +52,9 @@ void ofApp::setup(){
 	vector <ofSerialDeviceInfo> deviceList = serial.getDeviceList();
 	vector<string> temp = serial.getDeviceFriendlyNames();
 	for (int i = 0; i < temp.size(); i++){
-		//teensy's friendly name is USB Serial max speed = 125000
+		//we can customize this so that we don't have change ports
+		//it makes the code far more portable 
+		//teensy's friendly name is USB Serial max speed = 125000 
 		if (strstr(temp[i].c_str(), "Arduino") != NULL || strstr(temp[i].c_str(), "Serial") != NULL){
 			cout << "Setting up firmata on " << deviceList[i].getDeviceName() << endl;
 			arduinoAttached = ard.connect(deviceList[i].getDevicePath(), 57600); 
@@ -116,10 +118,10 @@ void ofApp::setupArduino(const int & version) {
 	// attach a servo to pin D9
 	ard.sendServoAttach(9);
 
-	// attach a stepper motor, we need to give it an id which starts at 0
-	// also need a step and a dir pin for driver boards or 2 wire steppers
+	// attach a stepper motor, we need a step and a dir pin for driver boards or 2 wire steppers
 	// optional addition of the steps per revolution, usually 200 at 1.8 degrees per step
-	ard.sendStepper2Wire(8, 7, 3200, 3, 4);
+	// also optional are limit switches, the pins and whether to use input pullup or not
+	ard.sendStepper2Wire(8, 7 , 3200, 3, 4);
 
 	//4 wire stepper also can be sent
 	//ard.sendStepper4Wire(0, 5, 6, 7, 8);
@@ -178,8 +180,20 @@ void ofApp::encoderDataRecieved(const vector<Encoder_Data> & data){
 	
 }
 void ofApp::stepperDataRecieved(const Stepper_Data & data){
-	cout << "recieved stepper data" << endl;
-	cout << "Type: " + ofToString(data.type) + " Data: " + ofToString(data.data) << endl;
+	switch (data.type){
+	case STEPPER_GET_POSITION:
+		cout << "Stepper " << data.id << "'s current position: " + ofToString(data.data) << endl;
+		break;
+	case STEPPER_GET_DISTANCE_TO:
+		cout << "Stepper " << data.id << "'s distance from target position: " + ofToString(data.data) << endl;
+		break;
+	case STEPPER_DONE:
+		cout << "Stepper " << data.id << "' is done stepping" << endl;
+		break;
+	default:
+		break;
+	}
+	
 }
 
 
@@ -213,6 +227,7 @@ void ofApp::keyPressed(int key){
 	switch (key) {
 	case OF_KEY_UP:
 		// turn the stepper one revolution
+		// can set speed and acceleration and deceleration
 		//ard.sendStepperMove(0, CCW, 3200, 10000, 20, 20);
 		ard.sendStepperMove(0, CCW, 3200);
 		break;
@@ -235,30 +250,46 @@ void ofApp::keyPressed(int key){
 		ard.getAllEncoderPositions();
 		break;
 	case '1':
+		//get the stepper position from the target position in steps
 		ard.getStepperDistanceFrom(0);
 		break;
 	case '2':
+		//get the current position of the stepper
 		ard.getStepperPosition(0);
 		break;
 	case '3':
+		//set the speed in terms of steps per second 
+		//in terms of RPM = steps per second / steps per revolution 
 		ard.setStepperSpeed(0, 20000);
 		break;
 	case '4':
+		//set the speed in terms of steps per second 
+		//in terms of RPM = steps per second / steps per revolution
 		ard.setStepperSpeed(0, 10000);
 		break;
 	case '5':
+		//set the speed in terms of steps per second 
+		//in terms of RPM = steps per second / steps per revolution
 		ard.setStepperSpeed(0, 5000);
 		break;
 	case '6':
+		//set the acceleration in terms of steps per second per second
+		//in terms of every second the motor speeds up by steps per second / steps per revolution
 		ard.setStepperAcceleration(0, 0);
 		break;
 	case '7':
+		//set the acceleration in terms of steps per second per second
+		//in terms of every second the motor speeds up by steps per second / steps per revolution
 		ard.setStepperAcceleration(0, 1000);
 		break;
 	case '8':
+		//set the deceleration in terms of steps per second per second
+		//in terms of every second the motor slows up by steps per second / steps per revolution
 		ard.setStepperDeceleration(0, 0);
 		break;
 	case '9':
+		//set the deceleration in terms of steps per second per second
+		//in terms of every second the motor slows up by steps per second / steps per revolution
 		ard.setStepperDeceleration(0, 1000);
 		break;
 	default:

@@ -181,38 +181,38 @@
 #define OF_ARDUINO_DELAY_LENGTH							10.0
 
 enum Stepper_Interface {
-	DRIVER = 1,
-	TWO_WIRE = 2,
+	DRIVER =	1,
+	TWO_WIRE =	2,
 	FOUR_WIRE = 3
 };
 
 enum Direction {
-	CCW = 0,
-	CW = 1
+	CCW =	0,
+	CW =	1
 };
 enum i2c_modes {
-	WRITE = 0x00,
-	READ = 1,
-	CONTINUOUS_READ = 2,
-	STOP_READING = 3
+	WRITE =				0x00,
+	READ =				1,
+	CONTINUOUS_READ =	2,
+	STOP_READING =		3
 };
 
 struct I2C_Data{
-	int address;
-	int reg;
-	string data;
+	int		address;
+	int		reg;
+	string	data;
 };
 
 struct Encoder_Data{
-	int ID;
-	bool direction;
-	int position;
+	int		ID;
+	bool	direction;
+	int		position;
 };
 
 struct Stepper_Data{
-	int id;
-	int type;
-	int data;
+	int		id;
+	int		type;
+	int		data;
 };
 
 
@@ -395,9 +395,6 @@ public:
 
 	void setStepperDeceleration(int stepperID, unsigned int decel);
 	// set the deceleration in steps per second per second
-
-	//void sendStepperLimitSwitch(int stepperID, int pin, bool sideOfStepper, bool usesInputPullup);
-	//send the pin, 
 
 
 	// -- servo

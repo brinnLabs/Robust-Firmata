@@ -76,7 +76,7 @@ struct ow_device_info
 
 ow_device_info pinOneWire[TOTAL_PINS];
 
-FirmataStepper *stepper[MAX_STEPPERS];
+Stepper *stepper[MAX_STEPPERS];
 byte numSteppers = 0;
 
 Encoder encoders[MAX_ENCODERS];
@@ -691,15 +691,25 @@ void sysexCallback(byte command, byte argc, byte *argv)
           numSteppers++; // assumes steppers are added in order 0 -> 5
         }
 
-        if (interfaceType == FirmataStepper::DRIVER || interfaceType == FirmataStepper::TWO_WIRE)
+        if (interfaceType == Stepper::DRIVER || interfaceType == Stepper::TWO_WIRE)
         {
-          limitSwitch1= argv[7];
-          limitSwitch2 = argv[8];
-          l1usePullup = argv[9];
-          l2usePullup = argv[10];
-          stepper[deviceNum] = new FirmataStepper(interface, stepsPerRev, directionPin, stepPin, limitSwitch1, limitSwitch2, l1usePullup, l2usePullup);
+          motorPin3 = argv[7];
+          motorPin4 = argv[8];
+          limitSwitch1= argv[9];
+          limitSwitch2 = argv[10];
+          l1usePullup = argv[11];
+          l2usePullup = argv[12];
+          if(limitSwitch1 > 0)
+          {
+            setPinModeCallback(limitSwitch1, STEPPER);// l1usePullup? FIRMATA_INPUT_PULLUP : INPUT);
+          }
+          if(limitSwitch2 > 0)
+          {
+            setPinModeCallback(limitSwitch2, STEPPER);//l2usePullup? FIRMATA_INPUT_PULLUP : INPUT);
+          }
+          stepper[deviceNum] = new Stepper(interface, stepsPerRev, directionPin, stepPin, motorPin3, motorPin4, limitSwitch1, limitSwitch2, l1usePullup, l2usePullup);
         }
-        else if (interfaceType == FirmataStepper::FOUR_WIRE)
+        else if (interfaceType == Stepper::FOUR_WIRE)
         {
           motorPin3 = argv[7];
           motorPin4 = argv[8];
@@ -709,7 +719,15 @@ void sysexCallback(byte command, byte argc, byte *argv)
           l2usePullup = argv[12];
           setPinModeCallback(motorPin3, STEPPER);
           setPinModeCallback(motorPin4, STEPPER);
-          stepper[deviceNum] = new FirmataStepper(interface, stepsPerRev, directionPin, stepPin, motorPin3, motorPin4, limitSwitch1, limitSwitch2, l1usePullup, l2usePullup);
+          if(limitSwitch1 > 0)
+          {
+            setPinModeCallback(limitSwitch1, STEPPER);// l1usePullup? FIRMATA_INPUT_PULLUP : INPUT);
+          }
+          if(limitSwitch2 > 0)
+          {
+            setPinModeCallback(limitSwitch2, STEPPER);//l2usePullup? FIRMATA_INPUT_PULLUP : INPUT);
+          }
+          stepper[deviceNum] = new Stepper(interface, stepsPerRev, directionPin, stepPin, motorPin3, motorPin4, limitSwitch1, limitSwitch2, l1usePullup, l2usePullup);
         }
       }
       else if (stepCommand == STEPPER_MOVE)
@@ -759,10 +777,6 @@ void sysexCallback(byte command, byte argc, byte *argv)
         Serial.write(curPosition >= 0? 0x01 : 0x00);
         Serial.write(END_SYSEX);
 
-        char str[64];
-        sprintf(str, "%d", curPosition);
-        Firmata.sendString(str);
-
       }
       else if (stepCommand == STEPPER_GET_DISTANCE_TO)
       {
@@ -779,10 +793,6 @@ void sysexCallback(byte command, byte argc, byte *argv)
         //this is a signed value we need the bit flag
         Serial.write(distTo >= 0? 0x01 : 0x00);
         Serial.write(END_SYSEX);
-
-        char str[64];
-        sprintf(str, "%d", distTo);
-        Firmata.sendString(str);
 
       }
       else if (stepCommand == STEPPER_SET_SPEED)
@@ -1117,10 +1127,6 @@ void reportEncoderPositions()
   {
     if (isEncoderAttached(encoderNum))
     {
-      //int32_t encPosition = encoders[encoderNum].read();
-      /*char str[64];
-       sprintf(str, "%d", encPosition);
-       Firmata.sendString(str);*/
       if (positions[encoderNum] != prevPositions[encoderNum])
       {
         if (!report)
