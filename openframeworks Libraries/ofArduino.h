@@ -142,11 +142,24 @@
 #define ARD_ON                                          1
 #define ARD_OFF                                         0
 
+<<<<<<< HEAD
 
 #define MAX_STEPPERS    								6     // arbitrary value... may need to adjust
 #define STEPPER_CONFIG  								0
 #define STEPPER_STEP    								1
 #define STEPPER_LIMIT_SWITCH							2
+=======
+#define MAX_STEPPERS    								6     // arbitrary value... may need to adjust
+#define STEPPER_DATA    								0x72  // move this to Firmata.h
+#define STEPPER_CONFIG  								0
+#define STEPPER_MOVE    								1
+#define STEPPER_DONE									10
+#define STEPPER_GET_POSITION							2
+#define STEPPER_GET_DISTANCE_TO							3
+#define STEPPER_SET_SPEED								4
+#define STEPPER_SET_ACCEL								5
+#define STEPPER_SET_DECEL								6
+>>>>>>> origin/experimental
 
 #define SYSEX_SERVO_ATTACH								0x00
 #define SYSEX_SERVO_DETACH								0x01
@@ -176,26 +189,38 @@
 #define OF_ARDUINO_DELAY_LENGTH							10.0
 
 enum Stepper_Interface {
-	DRIVER = 1,
-	TWO_WIRE = 2,
+	DRIVER =	1,
+	TWO_WIRE =	2,
 	FOUR_WIRE = 3
 };
 
 enum Direction {
-	CCW = 0,
-	CW = 1
+	CCW =	0,
+	CW =	1
 };
 enum i2c_modes {
-	WRITE = 0x00,
-	READ = 1,
-	CONTINUOUS_READ = 2,
-	STOP_READING = 3
+	WRITE =				0x00,
+	READ =				1,
+	CONTINUOUS_READ =	2,
+	STOP_READING =		3
 };
 
 struct I2C_Data{
-	int address;
-	int reg;
-	string data;
+	int		address;
+	int		reg;
+	string	data;
+};
+
+struct Encoder_Data{
+	int		ID;
+	bool	direction;
+	int		position;
+};
+
+struct Stepper_Data{
+	int		id;
+	int		type;
+	int		data;
 };
 
 struct Encoder_Data{
@@ -351,7 +376,7 @@ public:
 	ofEvent<const string> EStringReceived;
 	// triggered when a string is received, the string is passed as an argument
 
-	ofEvent<const int> EStepperIsDone;
+	ofEvent<const Stepper_Data> EStepperDataRecieved;
 	// triggered when a stepper has finished rotating. Returns which stepper has complted its rotation
 
 	ofEvent<const I2C_Data> EI2CDataRecieved;
@@ -361,14 +386,36 @@ public:
 	// triggered when the encoder returns data after a read request
 
 	// -- stepper
+<<<<<<< HEAD
 	void sendStepper2Wire(int dirPin, int stepPin, int stepsPerRev = 200);
 	// the pins has to have a stepper attached
 
 	void sendStepper4Wire(int pin1, int pin2, int pin3, int pin4, int stepsPerRev = 200);
+=======
+	void sendStepper2Wire(int dirPin, int stepPin, int stepsPerRev = 200, int limitSwitch1 = 0, int limitSwitch2 = 0, bool switch1UsesPullup = true, bool switch2UsesPullup = true);
 	// the pins has to have a stepper attached
 
-	void sendStepperStep(int stepperID, int direction, int steps, int speed, float acceleration = 0, float deceleration = 0);
+	void sendStepper4Wire(int pin1, int pin2, int pin3, int pin4, int stepsPerRev = 200, int limitSwitch1 = 0, int limitSwitch2 = 0, bool switch1UsesPullup = true, bool switch2UsesPullup = true);
+>>>>>>> origin/experimental
 	// the pins has to have a stepper attached
+
+	void sendStepperMove(int stepperID, int direction, int steps, int speed=0, float acceleration = 0, float deceleration = 0);
+	// set the steps to move
+
+	void getStepperPosition(int stepperID);
+	// get the steppers current position
+
+	void getStepperDistanceFrom(int stepperID);
+	//get the steppers current distance from the target
+
+	void setStepperSpeed(int stepperID, unsigned int speed);
+	// set the steppers current speed in steps per second
+
+	void setStepperAcceleration(int stepperID, unsigned int accel);
+	// set the acceleration in steps per second per second
+
+	void setStepperDeceleration(int stepperID, unsigned int decel);
+	// set the deceleration in steps per second per second
 
 	void sendStepperLimitSwitch(int stepperID, int pin, bool sideOfStepper, bool usesInputPullup);
 	//send the pin, 

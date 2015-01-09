@@ -16,6 +16,10 @@
 #include "Boards.h"  /* Hardware Abstraction Layer + Wiring/Arduino */
 #include "Utility/Encoder.h"
 #include "Utility/OneWire.h"
+<<<<<<< HEAD
+=======
+#include "Utility/Stepper.h"
+>>>>>>> origin/experimental
 
 /* Version numbers for the protocol.  The protocol is still changing, so these
  * version numbers are important.  This number can be queried so that host
@@ -78,11 +82,24 @@
 #define ENCODER_REPORT_AUTO         0x04
 #define ENCODER_DETACH              0x05
 
+<<<<<<< HEAD
 #define MAX_STEPPERS    		6     // arbitrary value... may need to adjust
 #define STEPPER_DATA    		0x72  // move this to Firmata.h
 #define STEPPER_CONFIG  		0
 #define STEPPER_STEP    		1
 #define STEPPER_LIMIT_SWITCH	2
+=======
+#define MAX_STEPPERS    			6     // arbitrary value... may need to adjust
+#define STEPPER_DATA    			0x72  // move this to Firmata.h
+#define STEPPER_CONFIG  			0
+#define STEPPER_MOVE    			1
+#define STEPPER_DONE				10
+#define STEPPER_GET_POSITION		2
+#define STEPPER_GET_DISTANCE_TO		3
+#define STEPPER_SET_SPEED			4
+#define STEPPER_SET_ACCEL			5
+#define STEPPER_SET_DECEL			6
+>>>>>>> origin/experimental
 
 #define I2C_WRITE 					B00000000
 #define I2C_READ 					B00001000
@@ -222,7 +239,9 @@ extern FirmataClass Firmata;
 
 #endif /* Firmata_h */
 
+
 /*
+<<<<<<< HEAD
   FirmataStepper is a simple non-blocking stepper motor library
   for 2 and 4 wire bipolar and unipolar stepper motor drive circuits
   as well as EasyDriver (http://schmalzhaus.com/EasyDriver/) and
@@ -392,6 +411,37 @@ private:
   int shift;
 };
 
+=======
+  Encoder7Bit.h - Firmata library
+  Copyright (C) 2012-2013 Norbert Truchsess. All rights reserved.
+  This library is free software; you can redistribute it and/or
+  modify it under the terms of the GNU Lesser General Public
+  License as published by the Free Software Foundation; either
+  version 2.1 of the License, or (at your option) any later version.
+  See file LICENSE.txt for further informations on licensing terms.
+  */
+
+#ifndef Encoder7Bit_h
+#define Encoder7Bit_h
+#include <Arduino.h>
+
+#define num7BitOutbytes(a)(((a)*7)>>3)
+
+class Encoder7BitClass
+{
+public:
+	Encoder7BitClass();
+	void startBinaryWrite();
+	void endBinaryWrite();
+	void writeBinary(byte data);
+	void readBinary(int outBytes, byte *inData, byte *outData);
+
+private:
+	byte previous;
+	int shift;
+};
+
+>>>>>>> origin/experimental
 extern Encoder7BitClass Encoder7Bit;
 
 #endif

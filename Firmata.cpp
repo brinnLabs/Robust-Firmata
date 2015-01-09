@@ -462,6 +462,7 @@ free(tmpArray);
 void FirmataClass::systemReset(void)
 {
 	byte i;
+<<<<<<< HEAD
 
 	waitForData = 0; // this flag says the next serial input will be data
 	executeMultiByteCommand = 0; // execute this after getting multi-byte data
@@ -472,6 +473,18 @@ void FirmataClass::systemReset(void)
 		storedInputData[i] = 0;
 	}
 
+=======
+
+	waitForData = 0; // this flag says the next serial input will be data
+	executeMultiByteCommand = 0; // execute this after getting multi-byte data
+	multiByteChannel = 0; // channel data for multiByteCommands
+
+	for (i = 0; i < MAX_DATA_BYTES; i++)
+	{
+		storedInputData[i] = 0;
+	}
+
+>>>>>>> origin/experimental
 	parsingSysex = false;
 	sysexBytesRead = 0;
 
@@ -499,6 +512,7 @@ void FirmataClass::strobeBlinkPin(int count, int onInterval, int offInterval)
 
 // make one instance for the user to use
 FirmataClass Firmata;
+<<<<<<< HEAD
 
 /**
   FirmataStepper is a simple non-blocking stepper motor library
@@ -950,6 +964,9 @@ byte FirmataStepper::version(void) {
 	return 1;
 }
 
+=======
+
+>>>>>>> origin/experimental
 /*
   Encoder7Bit.cpp - Firmata library
   Copyright (C) 2012-2013 Norbert Truchsess. All rights reserved.
@@ -958,28 +975,48 @@ byte FirmataStepper::version(void) {
   License as published by the Free Software Foundation; either
   version 2.1 of the License, or (at your option) any later version.
   See file LICENSE.txt for further informations on licensing terms.
+<<<<<<< HEAD
 */
 
 Encoder7BitClass::Encoder7BitClass()
 {
   previous = 0;
   shift = 0;
+=======
+  */
+
+Encoder7BitClass::Encoder7BitClass()
+{
+	previous = 0;
+	shift = 0;
+>>>>>>> origin/experimental
 }
 
 void Encoder7BitClass::startBinaryWrite()
 {
+<<<<<<< HEAD
   shift = 0;
+=======
+	shift = 0;
+>>>>>>> origin/experimental
 }
 
 void Encoder7BitClass::endBinaryWrite()
 {
+<<<<<<< HEAD
   if (shift > 0) {
     Firmata.write(previous);
   }
+=======
+	if (shift > 0) {
+		Firmata.write(previous);
+	}
+>>>>>>> origin/experimental
 }
 
 void Encoder7BitClass::writeBinary(byte data)
 {
+<<<<<<< HEAD
   if (shift == 0) {
     Firmata.write(data & 0x7f);
     shift++;
@@ -1006,6 +1043,34 @@ void Encoder7BitClass::readBinary(int outBytes,byte *inData, byte *outData)
     byte shift=j%7;
     outData[i]=(inData[pos]>>shift)|((inData[pos+1]<<(7-shift))&0xFF);
   }
+=======
+	if (shift == 0) {
+		Firmata.write(data & 0x7f);
+		shift++;
+		previous = data >> 7;
+	}
+	else {
+		Firmata.write(((data << shift) & 0x7f) | previous);
+		if (shift == 6) {
+			Firmata.write(data >> 1);
+			shift = 0;
+		}
+		else {
+			shift++;
+			previous = data >> (8 - shift);
+		}
+	}
+}
+
+void Encoder7BitClass::readBinary(int outBytes, byte *inData, byte *outData)
+{
+	for (int i = 0; i < outBytes; i++) {
+		int j = i << 3;
+		int pos = j / 7;
+		byte shift = j % 7;
+		outData[i] = (inData[pos] >> shift) | ((inData[pos + 1] << (7 - shift)) & 0xFF);
+	}
+>>>>>>> origin/experimental
 }
 
 Encoder7BitClass Encoder7Bit;
