@@ -95,6 +95,8 @@ public:
 	void setSpeed(int speed);
 	void setAcceleration(int accel);
 	void setDeceleration(int decel);
+	void home();
+	void setHome();
 
 	byte version(void);
 
@@ -129,6 +131,7 @@ private:
 
 	long _lastAccelDelay;
 	unsigned long _stepCount;
+	long _position;
 	unsigned int _rest;
 
 	float _alpha;  // PI * 2 / steps_per_rev

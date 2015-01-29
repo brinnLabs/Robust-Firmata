@@ -6,6 +6,7 @@
 #if defined( TARGET_OSX ) || defined( TARGET_LINUX ) || defined (TARGET_ANDROID)
 	#include <termios.h>
 #else
+	#define FLOW_CONTROL_SOFTWARE
 	#include <winbase.h>
 	#include <tchar.h>
 	#include <iostream>
@@ -19,7 +20,6 @@
 			#include <initguid.h> // needed for dev-c++ & DEFINE_GUID
     #endif
 #endif
-
 
 // notes below
 
@@ -45,7 +45,7 @@ class ofSerial {
 
 			int 			readBytes(unsigned char * buffer, int length);
 			int 			writeBytes(unsigned char * buffer, int length);
-			bool			writeByte(unsigned char singleByte);
+			int				writeByte(unsigned char singleByte);
 			int             readByte();  // returns -1 on no read or error...
 			void			flush(bool flushIn = true, bool flushOut = true);
 			int				available();
@@ -54,7 +54,18 @@ class ofSerial {
             bool            isInitialized() const;
 			
 			vector <string> getDeviceFriendlyNames();
-			
+
+			bool			isAvailable();
+			void			printSettings();
+			void			printState();
+
+			void			setRTS(bool level);
+			void			setDTR(bool level);
+			bool			waitForChange();
+			bool			getCTS();
+			bool			getDSR();
+			bool			getRI();
+			bool			getRLSD();
 
 	protected:
 			void			buildDeviceList();
@@ -75,6 +86,9 @@ class ofSerial {
 				bool 		bPortsEnumerated;
 				void 		enumerateWin32Ports();
 				COMMTIMEOUTS 	oldTimeout;	// we alter this, so keep a record
+				bool Dsr, Cts, Ring, Rlsd;
+
+				
 
 			#else
 				int 		fd;			// the handle to the serial port mac

@@ -80,15 +80,16 @@
 #define ENCODER_DETACH              0x05
 
 #define MAX_STEPPERS    			6     // arbitrary value... may need to adjust
-#define STEPPER_DATA    			0x72  // move this to Firmata.h
 #define STEPPER_CONFIG  			0
-#define STEPPER_MOVE    			1
-#define STEPPER_DONE				10
+#define STEPPER_STEP    			1
 #define STEPPER_GET_POSITION		2
 #define STEPPER_GET_DISTANCE_TO		3
 #define STEPPER_SET_SPEED			4
 #define STEPPER_SET_ACCEL			5
 #define STEPPER_SET_DECEL			6
+#define STEPPER_DONE				7
+#define STEPPER_HOME				8
+#define STEPPER_SET_HOME			9
 
 #define I2C_WRITE 					B00000000
 #define I2C_READ 					B00001000

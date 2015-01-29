@@ -76,11 +76,55 @@ ofArduino::ofArduino(){
 		_servoValue[i] = -1;
 	}
 	bUseDelay = true;
-	//sendFirmwareVersionRequest();
 }
 
 ofArduino::~ofArduino() {
 	_port.close();
+}
+
+void ofArduino::reset(){
+	_i2cConfigured = false;
+	_portStatus = -1;
+	_waitForData = 0;
+	_analogHistoryLength = 2;
+	_digitalHistoryLength = 2;
+	_stringHistoryLength = 1;
+	_sysExHistoryLength = 1;
+	_numSteppers = 0;
+	_numEncoders = 0;
+	_stepperID = 0;
+	_encoderID = 0;
+
+	_majorProtocolVersion = 0;
+	_minorProtocolVersion = 0;
+	_majorFirmwareVersion = 0;
+	_minorFirmwareVersion = 0;
+	_firmwareName = "Unknown";
+
+	// ports
+	for (int i = 0; i < TOTAL_PORTS; ++i) {
+		_digitalPortValue[i] = 0;
+		_digitalPortReporting[i] = ARD_OFF;
+	}
+
+	// digital pins
+	for (int i = 0; i < TOTAL_DIGITAL_PINS; ++i) {
+		_digitalPinValue[i] = -1;
+		_digitalPinMode[i] = ARD_OUTPUT;
+		_digitalPinReporting[i] = ARD_OFF;
+	}
+
+	// analog in pins
+	for (int i = 0; i < TOTAL_ANALOG_PINS; ++i) {
+		_analogPinReporting[i] = ARD_OFF;
+		// analog pins used as digital
+		_digitalPinMode[i] = ARD_ANALOG;
+		_digitalPinValue[i] = -1;
+	}
+	for (int i = 0; i < TOTAL_DIGITAL_PINS; ++i) {
+		_servoValue[i] = -1;
+	}
+	bUseDelay = true;
 }
 
 bool ofArduino::connect(string device, int baud){
@@ -332,6 +376,11 @@ string ofArduino::getFirmwareName(){
 
 bool ofArduino::isInitialized(){
 	return _initialized;
+}
+
+bool ofArduino::isAttached(){
+	//should return false if there is a serial error thus the arduino is not attached
+	return _port.writeByte(FIRMATA_END_SYSEX) >= 0? true: false;
 }
 
 // ------------------------------ private functions
@@ -696,6 +745,14 @@ int ofArduino::getValueFromTwo7bitBytes(unsigned char lsb, unsigned char msb){
 	return (msb << 7) | lsb;
 }
 
+/********************************************
+*
+*
+*				Servo Functions
+*
+*
+********************************************/
+
 void ofArduino::sendServo(int pin, int value, bool force){
 	if (_digitalPinMode[pin] == ARD_SERVO && (_servoValue[pin] != value || force)){
 		sendByte(FIRMATA_START_SYSEX);
@@ -732,6 +789,14 @@ int ofArduino::getServo(int pin){
 		return -1;
 }
 
+/********************************************
+*
+*
+*				Stepper Functions
+*
+*
+********************************************/
+
 void  ofArduino::sendStepper2Wire(int dirPin, int stepPin, int stepsPerRev, int limitSwitch1, int limitSwitch2, bool switch1UsesPullup, bool switch2UsesPullup){
 
 	if (_stepperID < MAX_STEPPERS){
@@ -743,12 +808,12 @@ void  ofArduino::sendStepper2Wire(int dirPin, int stepPin, int stepsPerRev, int 
 		sendValueAsTwo7bitBytes(stepsPerRev);
 		sendByte(dirPin);
 		sendByte(stepPin);
-		sendByte(0);
-		sendByte(0);
-		sendByte(limitSwitch1);
-		sendByte(limitSwitch2);
-		sendByte(switch1UsesPullup);
-		sendByte(switch2UsesPullup);
+		if (limitSwitch1 > 0 || limitSwitch2 > 0){
+			sendByte(limitSwitch1);
+			sendByte(limitSwitch2);
+			sendByte(switch1UsesPullup);
+			sendByte(switch2UsesPullup);
+		}
 		sendByte(FIRMATA_END_SYSEX);
 
 		if (limitSwitch1 > 0)
@@ -817,7 +882,7 @@ void ofArduino::sendStepperMove(int stepperID, int direction, int numSteps, int 
 
 			sendByte(FIRMATA_START_SYSEX);
 			sendByte(STEPPER_DATA);
-			sendByte(STEPPER_MOVE);
+			sendByte(STEPPER_STEP);
 			sendByte(stepperID);
 			sendByte(direction);
 			sendByte(steps[0]);
@@ -832,7 +897,7 @@ void ofArduino::sendStepperMove(int stepperID, int direction, int numSteps, int 
 		else if (speed != 0){
 			sendByte(FIRMATA_START_SYSEX);
 			sendByte(STEPPER_DATA);
-			sendByte(STEPPER_MOVE);
+			sendByte(STEPPER_STEP);
 			sendByte(stepperID);
 			sendByte(direction);
 			sendByte(steps[0]);
@@ -844,7 +909,7 @@ void ofArduino::sendStepperMove(int stepperID, int direction, int numSteps, int 
 		else{
 			sendByte(FIRMATA_START_SYSEX);
 			sendByte(STEPPER_DATA);
-			sendByte(STEPPER_MOVE);
+			sendByte(STEPPER_STEP);
 			sendByte(stepperID);
 			sendByte(direction);
 			sendByte(steps[0]);
@@ -909,22 +974,13 @@ void ofArduino::setStepperDeceleration(int stepperID, unsigned int decel){
 	}
 }
 
-//void ofArduino::sendStepperLimitSwitch(int stepperID, int pin, bool sideOfStepper, bool usesInputPullup) {
-//
-//	if (stepperID <= _stepperID && stepperID >= 0){
-//		sendByte(FIRMATA_START_SYSEX);
-//		sendByte(STEPPER_DATA);
-//		sendByte(STEPPER_LIMIT_SWITCH);
-//		sendByte(stepperID);
-//		sendByte(sideOfStepper);
-//		sendByte(pin);
-//		sendByte(usesInputPullup);
-//		sendByte(FIRMATA_END_SYSEX);
-//
-//		_digitalPinMode[pin] = usesInputPullup ? ARD_INPUT_PULLUP : ARD_INPUT;
-//		sendDigitalPinReporting(pin, ARD_ON);
-//	}
-//}
+/********************************************
+*
+*
+*				I2C Functions
+*
+*
+********************************************/
 
 /**
 * Sends a I2C config request to the arduino board with an optional
@@ -1142,6 +1198,14 @@ bool ofArduino::isI2CConfigured() {
 
 // CONTINUOUS_READ
 
+/********************************************
+*
+*
+*				One Wire Functions
+*
+*
+********************************************/
+
 ///**
 //* Configure the passed pin as the controller in a 1-wire bus.
 //* Pass as enableParasiticPower true if you want the data pin to power the bus.
@@ -1294,6 +1358,14 @@ void  ofArduino::sendOneWireRequest(int pin, unsigned char subcommand, unsigned 
 	sendByte(FIRMATA_END_SYSEX);
 }
 
+/********************************************
+ *
+ *
+ *				Encoder Functions
+ *
+ *
+ ********************************************/
+
 void ofArduino::attachEncoder(int pinA, int pinB){
 	if (_encoderID < MAX_ENCODERS){
 		sendByte(FIRMATA_START_SYSEX);
@@ -1307,18 +1379,6 @@ void ofArduino::attachEncoder(int pinA, int pinB){
 	}
 
 }
-//void ofArduino::attachEncoder(int encoderID, int pinA, int pinB){
-//	if (encoderID < MAX_ENCODERS){
-//		sendByte(FIRMATA_START_SYSEX);
-//		sendByte(ENCODER_DATA);
-//		sendByte(ENCODER_ATTACH);
-//		sendByte(encoderID);
-//		sendByte(pinA);
-//		sendByte(pinB);
-//		sendByte(FIRMATA_END_SYSEX);
-//	}
-//
-//}
 void ofArduino::getEncoderPosition(int encoderID){
 	if (encoderID <= _encoderID && encoderID >= 0){
 		sendByte(FIRMATA_START_SYSEX);

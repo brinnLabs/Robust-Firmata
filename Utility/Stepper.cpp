@@ -84,6 +84,7 @@ Stepper::Stepper(byte interface,
 	_accel = 0;
 	_decel = 0;
 	_speed = 100;
+	_position = 0;
 
 	_areLimitSwitches = false;
 	_limit_switch_a = lSwitchA;
@@ -129,23 +130,37 @@ Stepper::Stepper(byte interface,
 
 }
 
+//position of the stepper since init or distance since homing
 long Stepper::getPosition(){
-	return _direction ? _stepCount : -_stepCount;
+	return _position;
 }
+
+//distance from current target
 long Stepper::getDistanceTo(){
 	return (_steps_to_move - _stepCount) * (_direction ? 1 : -1);
 }
+
 void Stepper::setSpeed(int speed){
 	_speed = speed;
 }
+
 void Stepper::setAcceleration(int accel){
 	_accel = accel;
 }
+
 void Stepper::setDeceleration(int decel){
 	_decel = decel;
 }
 
+//returns motor to position 0
+void Stepper::home(){
+	setStepsToMove(-_position);
+}
 
+//set current position as the home position
+void Stepper::setHome(){
+	_position=0;
+}
 /**
  * Move the stepper a given number of steps at the specified
  * speed (rad/sec), acceleration (rad/sec^2) and deceleration (rad/sec^2).
@@ -165,6 +180,7 @@ void Stepper::setStepsToMove(long steps_to_move, int speed, int accel, int decel
 	_lastAccelDelay = 0;
 	_stepCount = 0;
 	_rest = 0;
+	_position += steps_to_move;
 
 	if (speed != -1)
 		_speed = speed;
