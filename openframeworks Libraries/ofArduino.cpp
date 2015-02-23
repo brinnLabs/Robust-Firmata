@@ -559,7 +559,7 @@ void ofArduino::processSysExData(vector<unsigned char> data){
 			ofNotifyEvent(EI2CDataRecieved, i2creply, this);
 		}
 		else {
-			ofLogError("Arduino") << "Incorrect Number of Bytes recieved, possible buffer overflow";
+			ofLogNotice("Arduino I2C") << "Incorrect Number of Bytes recieved, possible buffer overflow";
 		}
 		break;
 	case STEPPER_DATA:
@@ -618,7 +618,7 @@ void ofArduino::processSysExData(vector<unsigned char> data){
 			}
 		}
 		else {
-			ofLogError("Arduino") << "Incorrect Number of Bytes recieved, possible buffer overflow";
+			ofLogNotice("Arduino Stepper") << "Incorrect Number of Bytes recieved, possible buffer overflow";
 		}
 		break;
 	case ENCODER_DATA:
@@ -651,7 +651,8 @@ void ofArduino::processSysExData(vector<unsigned char> data){
 			ofNotifyEvent(EEncoderDataRecieved, encoderReply, this);
 		}
 		else {
-			ofLogError("Arduino") << "Incorrect Number of Bytes recieved, possible buffer overflow";
+			ofLogNotice("Arduino Encoder") << "Incorrect Number of Bytes recieved, possible buffer overflow";
+			flushAll();
 		}
 
 		break;

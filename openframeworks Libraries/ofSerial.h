@@ -6,7 +6,7 @@
 #if defined( TARGET_OSX ) || defined( TARGET_LINUX ) || defined (TARGET_ANDROID)
 	#include <termios.h>
 #else
-	#define FLOW_CONTROL_SOFTWARE
+	//#define FLOW_CONTROL_SOFTWARE
 	#include <winbase.h>
 	#include <tchar.h>
 	#include <iostream>
@@ -52,8 +52,9 @@ class ofSerial {
 
             void            drain();
             bool            isInitialized() const;
-			
+#ifdef TARGET_WIN32
 			vector <string> getDeviceFriendlyNames();
+
 
 			bool			isAvailable();
 			void			printSettings();
@@ -66,6 +67,8 @@ class ofSerial {
 			bool			getDSR();
 			bool			getRI();
 			bool			getRLSD();
+
+#endif
 
 	protected:
 			void			buildDeviceList();

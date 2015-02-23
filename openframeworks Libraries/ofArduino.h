@@ -372,7 +372,7 @@ public:
 	ofEvent<const I2C_Data> EI2CDataRecieved;
 	// triggered when the I2C bus returns data after a read request
 
-	ofEvent<const vector<Encoder_Data>> EEncoderDataRecieved;
+ 	ofEvent<const vector<Encoder_Data> > EEncoderDataRecieved;
 	// triggered when the encoder returns data after a read request
 
 	// -- stepper

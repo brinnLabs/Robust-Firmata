@@ -253,6 +253,7 @@ vector <ofSerialDeviceInfo> ofSerial::getDeviceList(){
 	return devices;
 }
 
+#ifdef TARGET_WIN32
 vector <string> ofSerial::getDeviceFriendlyNames(){
 	vector<string> temp;
 	for (int i = 0; i < nPorts; i++){
@@ -260,6 +261,8 @@ vector <string> ofSerial::getDeviceFriendlyNames(){
 	}
 	return temp;
 }
+#endif
+
 
 //----------------------------------------------------------------
 void ofSerial::enumerateDevices(){
@@ -735,6 +738,7 @@ bool ofSerial::isInitialized() const{
 	return bInited;
 }
 
+#ifdef TARGET_WIN32
 bool ofSerial::isAvailable(){
 	DCB dcb;
 	DWORD dwEvtMask;
@@ -890,3 +894,4 @@ bool ofSerial::getRLSD()
 		return (MS_RLSD_ON & dwModemStatus) != 0;
 	}
 }
+#endif
