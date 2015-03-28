@@ -92,6 +92,7 @@ public:
 
 	long getPosition();
 	long getDistanceTo();
+	bool getLimitSwitchState(bool side);
 	void setSpeed(int speed);
 	void setAcceleration(int accel);
 	void setDeceleration(int decel);

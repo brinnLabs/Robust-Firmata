@@ -90,6 +90,8 @@
 #define STEPPER_DONE				7
 #define STEPPER_HOME				8
 #define STEPPER_SET_HOME			9
+#define STEPPER_LIMIT_SWITCH_A		10
+#define STEPPER_LIMIT_SWITCH_B		11
 
 #define I2C_WRITE 					B00000000
 #define I2C_READ 					B00001000

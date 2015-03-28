@@ -140,6 +140,10 @@ long Stepper::getDistanceTo(){
 	return (_steps_to_move - _stepCount) * (_direction ? 1 : -1);
 }
 
+bool Stepper::getLimitSwitchState(bool side){
+	return side? _a_tripped : _b_tripped;
+}
+
 void Stepper::setSpeed(int speed){
 	_speed = speed;
 }
