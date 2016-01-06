@@ -8,7 +8,8 @@
   See file LICENSE.txt for further informations on licensing terms.
   */
   
-  #include "Encoder7Bit.h"
+#include "Encoder7Bit.h"
+#include "Firmata.h"
 
 Encoder7BitClass::Encoder7BitClass()
 {
@@ -24,21 +25,21 @@ void Encoder7BitClass::startBinaryWrite()
 void Encoder7BitClass::endBinaryWrite()
 {
 	if (shift > 0) {
-		robustFirmata.write(previous);
+		Firmata.write(previous);
 	}
 }
 
 void Encoder7BitClass::writeBinary(byte data)
 {
 	if (shift == 0) {
-		robustFirmata.write(data & 0x7f);
+		Firmata.write(data & 0x7f);
 		shift++;
 		previous = data >> 7;
 	}
 	else {
-		robustFirmata.write(((data << shift) & 0x7f) | previous);
+		Firmata.write(((data << shift) & 0x7f) | previous);
 		if (shift == 6) {
-			robustFirmata.write(data >> 1);
+			Firmata.write(data >> 1);
 			shift = 0;
 		}
 		else {
